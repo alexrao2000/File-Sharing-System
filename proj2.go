@@ -87,6 +87,11 @@ type User struct {
 	Username string
 	Password string
 
+	var k_pvt PrivateKeyType
+
+	//OwnedFiles []string
+	//SharedFiles []string
+
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
 	// be public (start with a capital letter)
