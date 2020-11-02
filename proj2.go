@@ -110,6 +110,8 @@ type User struct {
 // the attackers may possess a precomputed tables containing
 // hashes of common passwords downloaded from the internet.
 func InitUser(username string, password string) (userdataptr *User, err error) {
+	const k_password_len uint32 = 256
+
 	var userdata User
 	userdataptr = &userdata
 
@@ -122,17 +124,16 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
 
 	// Key generation
-	var byte_password byte[]
-	byte_password, err = hex.DecodeString(password)
+	byte_username, err = hex.DecodeString(username)
 	if err != nil {
 		return nil, err
 	}
-	var byte_username byte[]
-	byte_username, err = hex.DecodeString(password)
+	byte_password, err := hex.DecodeString(password)
 	if err != nil {
 		return nil, err
 	}
-	k_password := Argon2Key(byte_password, )
+	k_password := Argon2Key(byte_password, byte_username, 256)
+	//TODO: HKDF
 
 	// Encryption
 
