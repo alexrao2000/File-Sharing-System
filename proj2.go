@@ -85,6 +85,7 @@ func bytesToUUID(data []byte) (ret uuid.UUID) {
 // The structure definition for a user record
 type User struct {
 	Username string
+	Password string
 
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
@@ -112,6 +113,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 
 	//TODO: This is a toy implementation.
 	userdata.Username = username
+	userdate.Password = password
 	//End of toy implementation
 
 	return &userdata, nil
