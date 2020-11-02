@@ -86,6 +86,8 @@ func bytesToUUID(data []byte) (ret uuid.UUID) {
 type User struct {
 	Username string
 	Password string
+	K_private PKEDecKey
+	K_DS_private DSSignKey
 
 	var k_pvt PrivateKeyType
 
@@ -113,13 +115,33 @@ type User struct {
 // the attackers may possess a precomputed tables containing
 // hashes of common passwords downloaded from the internet.
 func InitUser(username string, password string) (userdataptr *User, err error) {
+	const k_password_len uint32 = 256
+
 	var userdata User
 	userdataptr = &userdata
 
-	//TODO: This is a toy implementation.
+	//TODO: Adding private keys
 	userdata.Username = username
 	userdate.Password = password
-	//End of toy implementation
+
+	// Encoding
+	bytes, _ := json.Marshal(userdataptr)
+	userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
+
+	// Key generation
+	byte_username, err = hex.DecodeString(username)
+	if err != nil {
+		return nil, err
+	}
+	byte_password, err := hex.DecodeString(password)
+	if err != nil {
+		return nil, err
+	}
+	k_password := Argon2Key(byte_password, byte_username, 256)
+	//TODO: HKDF
+
+	// Encryption
+
 
 	return &userdata, nil
 }
