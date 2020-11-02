@@ -132,7 +132,8 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	if err != nil {
 		return nil, err
 	}
-	k_password := Argon2Key(byte_password, byte_username, 256)
+	k_password := userlib.Argon2Key(byte_password, byte_username, 256)
+	// k_user_encrypt := HashKDF
 	//TODO: HKDF
 
 	// Encryption
