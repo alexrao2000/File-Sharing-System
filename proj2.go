@@ -89,6 +89,9 @@ type User struct {
 	K_private PKEDecKey
 	K_DS_private DSSignKey
 
+	//OwnedFiles []string
+	//SharedFiles []string
+
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
 	// be public (start with a capital letter)
