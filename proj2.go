@@ -89,8 +89,6 @@ type User struct {
 	K_private PKEDecKey
 	K_DS_private DSSignKey
 
-	var k_pvt PrivateKeyType
-
 	//OwnedFiles []string
 	//SharedFiles []string
 
