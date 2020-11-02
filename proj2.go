@@ -86,6 +86,8 @@ func bytesToUUID(data []byte) (ret uuid.UUID) {
 type User struct {
 	Username string
 	Password string
+	K_private PKEDecKey
+	K_DS_private DSSignKey
 
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
