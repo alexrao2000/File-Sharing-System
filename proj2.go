@@ -113,10 +113,29 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	var userdata User
 	userdataptr = &userdata
 
-	//TODO: This is a toy implementation.
+	//TODO: Adding private keys
 	userdata.Username = username
 	userdate.Password = password
-	//End of toy implementation
+
+	// Encoding
+	bytes, _ := json.Marshal(userdataptr)
+	userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
+
+	// Key generation
+	var byte_password byte[]
+	byte_password, err = hex.DecodeString(password)
+	if err != nil {
+		return nil, err
+	}
+	var byte_username byte[]
+	byte_username, err = hex.DecodeString(password)
+	if err != nil {
+		return nil, err
+	}
+	k_password := Argon2Key(byte_password, )
+
+	// Encryption
+
 
 	return &userdata, nil
 }
