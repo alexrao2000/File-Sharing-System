@@ -136,12 +136,12 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	bytes, _ := json.Marshal(userdataptr)
 	userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
 
-	ue, _ := json.Marshal("user_encrypt")
-	userlib.DebugMsg("DEBUG: user JSON %s\n", string(ue))
-	ua, _ := json.Marshal("user_auth")
-	userlib.DebugMsg("DEBUG: user JSON %s\n", string(ua))
-	us, _ := json.Marshal("user_storage")
-	userlib.DebugMsg("DEBUG: user JSON %s\n", string(us))
+	salt_encrypt, _ := json.Marshal("user_encrypt")
+	userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
+	salt_auth, _ := json.Marshal("user_auth")
+	userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
+	salt_storage, _ := json.Marshal("user_storage")
+	userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
 
 	// Key generation
 	byte_username, err := hex.DecodeString(username)
@@ -156,20 +156,20 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	k_password := userlib.Argon2Key(byte_password, byte_username, 256)
 
 	//HKDF
-	k_user_encrypt, err := userlib.HashKDF(k_password, ue)
+	k_user_encrypt, err := HashKDF(k_password, salt_encrypt)
 	if err != nil {
 		return nil, err
 	}
-	k_user_auth, err := userlib.HashKDF(k_password, ua)
+	k_user_auth, err := HashKDF(k_password, salt_auth)
 	if err != nil {
 		return nil, err
 	}
-	k_user_storage, err := userlib.HashKDF(k_password, us)
+	k_user_storage, err := HashKDF(k_password, salt_storage)
 	if err != nil {
 		return nil, err
 	}
 
-	hmac_username, err := userlib.HashKDF(username, k_user_storage)
+	hmac_username, err := HashKDF(username, k_user_storage)
 	if err != nil {
 		return nil, err
 	}
