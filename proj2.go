@@ -68,7 +68,7 @@ func someUsefulThings() {
 	// And a random RSA key.  In this case, ignoring the error
 	// return value
 	var pk userlib.PKEEncKey
-        var sk userlib.PKEDecKey
+    var sk userlib.PKEDecKey
 	pk, sk, _ = userlib.PKEKeyGen()
 	userlib.DebugMsg("Key is %v, %v", pk, sk)
 }
@@ -85,12 +85,9 @@ func bytesToUUID(data []byte) (ret uuid.UUID) {
 // The structure definition for a user record
 type User struct {
 	Username string
-	Password string
+	K_password []bytes
 	K_private PKEDecKey
 	K_DS_private DSSignKey
-
-	//OwnedFiles []string
-	//SharedFiles []string
 
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
@@ -118,16 +115,37 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	var userdata User
 	userdataptr = &userdata
 
-	//TODO: Adding private keys
+	//Adding private keys
+	k_pub, K_private, _ := userlib.PKEKeyGen()
+	userlib.DebugMsg("Key is %v, %v", k_pub, k_Private)
+
+	k_DS_pub, K_DS_private, _ := userlib.DSKeyGen()
+	userlib.DebugMsg("Key is %v, %v", k_DS_pub, k_DS_Private)
+
+	//store private keys
+	userdata.K_private = K_private
+	userdata.K_DS_private = K_DS_private
+
+	//store public keys
+	k_pubkey = userlib.hash(username)
+	userlib.KeystoreSet(k_pubkey, k_pub+k_DS_pub)
+
+	//set username
 	userdata.Username = username
-	userdate.Password = password
 
 	// Encoding
 	bytes, _ := json.Marshal(userdataptr)
 	userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
 
+	salt_encrypt, _ := json.Marshal("user_encrypt")
+	userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
+	salt_auth, _ := json.Marshal("user_auth")
+	userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
+	salt_storage, _ := json.Marshal("user_storage")
+	userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
+
 	// Key generation
-	byte_username, err = hex.DecodeString(username)
+	byte_username, err := hex.DecodeString(username)
 	if err != nil {
 		return nil, err
 	}
@@ -135,9 +153,29 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	if err != nil {
 		return nil, err
 	}
-	k_password := userlib.Argon2Key(byte_password, byte_username, 256)
-	// k_user_encrypt := HashKDF
-	//TODO: HKDF
+
+	k_password := Argon2Key(byte_password, byte_username, 256)
+	userdata.K_password = k_password
+
+	//HKDF
+	k_user_encrypt, err := HashKDF(k_password, salt_encrypt)
+	if err != nil {
+		return nil, err
+	}
+	k_user_auth, err := HashKDF(k_password, salt_auth)
+	if err != nil {
+		return nil, err
+	}
+	k_user_storage, err := HashKDF(k_password, salt_storage)
+	if err != nil {
+		return nil, err
+	}
+
+	hmac_username, err := HashKDF(username, k_user_storage)
+	if err != nil {
+		return nil, err
+	}
+	ID_user, _ := uuid.FromBytes(hmac_username)
 
 	// Encryption
 
