@@ -136,12 +136,12 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	bytes, _ := json.Marshal(userdataptr)
 	userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
 
-	salt_encrypt, _ := json.Marshal("user_encrypt")
-	userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
-	salt_auth, _ := json.Marshal("user_auth")
-	userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
-	salt_storage, _ := json.Marshal("user_storage")
-	userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
+	ue, _ := json.Marshal("user_encrypt")
+	userlib.DebugMsg("DEBUG: user JSON %s\n", string(ue))
+	ua, _ := json.Marshal("user_auth")
+	userlib.DebugMsg("DEBUG: user JSON %s\n", string(ua))
+	us, _ := json.Marshal("user_storage")
+	userlib.DebugMsg("DEBUG: user JSON %s\n", string(us))
 
 	// Key generation
 	byte_username, err := hex.DecodeString(username)
@@ -152,7 +152,6 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	if err != nil {
 		return nil, err
 	}
-<<<<<<< HEAD
 	
 	k_password := userlib.Argon2Key(byte_password, byte_username, 256)
 
@@ -166,22 +165,6 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 		return nil, err
 	}
 	k_user_storage, err := userlib.HashKDF(k_password, us)
-=======
-
-	k_password := Argon2Key(byte_password, byte_username, 256)
-	userdata.K_password = k_password
-
-	//HKDF
-	k_user_encrypt, err := HashKDF(k_password, salt_encrypt)
-	if err != nil {
-		return nil, err
-	}
-	k_user_auth, err := HashKDF(k_password, salt_auth)
-	if err != nil {
-		return nil, err
-	}
-	k_user_storage, err := HashKDF(k_password, salt_storage)
->>>>>>> c91209d1f62e86781d852cff7815e36c4ad59970
 	if err != nil {
 		return nil, err
 	}
@@ -193,11 +176,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	ID_user, _ := uuid.FromBytes(hmac_username)
 
 	// Encryption
-<<<<<<< HEAD
 	userlib.symEnc()
-=======
-
->>>>>>> c91209d1f62e86781d852cff7815e36c4ad59970
 
 	return &userdata, nil
 }
