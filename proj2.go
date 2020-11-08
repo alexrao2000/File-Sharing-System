@@ -85,7 +85,6 @@ func bytesToUUID(data []byte) (ret uuid.UUID) {
 // The structure definition for a user record
 type User struct {
 	Username string
-	K_password []bytes
 	K_private PKEDecKey
 	K_DS_private DSSignKey
 
@@ -154,31 +153,30 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 		return nil, err
 	}
 	
-	k_password := Argon2Key(byte_password, byte_username, 256)
-	userdata.K_password = k_password
+	k_password := userlib.Argon2Key(byte_password, byte_username, 256)
 
 	//HKDF
-	k_user_encrypt, err := HashKDF(k_password, ue)
+	k_user_encrypt, err := userlib.HashKDF(k_password, ue)
 	if err != nil {
 		return nil, err
 	}
-	k_user_auth, err := HashKDF(k_password, ua)
+	k_user_auth, err := userlib.HashKDF(k_password, ua)
 	if err != nil {
 		return nil, err
 	}
-	k_user_storage, err := HashKDF(k_password, us)
+	k_user_storage, err := userlib.HashKDF(k_password, us)
 	if err != nil {
 		return nil, err
 	}
 
-	hmac_username, err := HashKDF(username, k_user_storage)
+	hmac_username, err := userlib.HashKDF(username, k_user_storage)
 	if err != nil {
 		return nil, err
 	}
 	ID_user, _ := uuid.FromBytes(hmac_username)
 
 	// Encryption
-	
+	userlib.symEnc()
 
 	return &userdata, nil
 }
