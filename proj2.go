@@ -233,8 +233,8 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 func (userdata *User) StoreFile(filename string, data []byte) {
 	// Parameter
 	var VOLUME_SIZE int = 1073741824 // 2^30 bytes
-	K_SIZE := 32
-	K_MAC_SIZE := 16
+	IV_SIZE := 32
+	K_SIZE := 16
 
 	userlib.DebugMsg("AES block size is %v", userlib.AESBlockSize)
 	userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
