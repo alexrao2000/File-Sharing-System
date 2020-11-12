@@ -109,7 +109,7 @@ type User struct {
 // the attackers may possess a precomputed tables containing
 // hashes of common passwords downloaded from the internet.
 func InitUser(username string, password string) (userdataptr *User, err error) {
-	const k_password_len uint32 = 256
+	const k_password_len uint32 = 32
 
 	var userdata User
 	userdataptr = &userdata
@@ -152,24 +152,28 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	if err != nil {
 		return nil, err
 	}
-	
-	k_password := userlib.Argon2Key(byte_password, byte_username, 256)
+
+	k_password := userlib.Argon2Key(byte_password,
+		byte_username, k_password_len)
 
 	//HKDF
-	k_user_encrypt, err := HashKDF(k_password, salt_encrypt)
+	k_user_encrypt, err := userlib.HashKDF(k_password,
+		salt_encrypt)[:k_password_len]
 	if err != nil {
 		return nil, err
 	}
-	k_user_auth, err := HashKDF(k_password, salt_auth)
+	k_user_auth, err := userlib.HashKDF(k_password, salt_auth)[:k_password_len]
 	if err != nil {
 		return nil, err
 	}
-	k_user_storage, err := HashKDF(k_password, salt_storage)
+	k_user_storage, err := userlib.HashKDF(k_password,
+		salt_storage)[:k_password_len]
 	if err != nil {
 		return nil, err
 	}
 
-	hmac_username, err := HashKDF(username, k_user_storage)
+	hmac_username, err := userlib.HashKDF(username,
+		k_user_storage)[:k_password_len]
 	if err != nil {
 		return nil, err
 	}
