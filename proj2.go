@@ -32,7 +32,6 @@ import (
 	// Optional. You can remove the "_" there, but please do not touch
 	// anything else within the import bracket.
 	_ "strconv"
-
 	// if you are looking for fmt, we don't give you fmt, but you can use userlib.DebugMsg.
 	// see someUsefulThings() below:
 )
@@ -68,7 +67,7 @@ func someUsefulThings() {
 	// And a random RSA key.  In this case, ignoring the error
 	// return value
 	var pk userlib.PKEEncKey
-    var sk userlib.PKEDecKey
+	var sk userlib.PKEDecKey
 	pk, sk, _ = userlib.PKEKeyGen()
 	userlib.DebugMsg("Key is %v, %v", pk, sk)
 }
@@ -213,17 +212,36 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 // The plaintext of the filename + the plaintext and length of the filename
 // should NOT be revealed to the datastore!
 func (userdata *User) StoreFile(filename string, data []byte) {
-
-	//TODO: This is a toy implementation.
+	// Encoding
 	UUID, _ := uuid.FromBytes([]byte(filename + userdata.Username)[:16])
+	// TODO: secure UUID
 	packaged_data, _ := json.Marshal(data)
+
+	// Splitting
+	// data_string, err := hex.DecodeString(packaged_data)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	var VOLUME_SIZE int = 1073741824             // 2^30 bytes
+	data_size := len(packaged_data) // bytes
+	var n_volumes int = data_size/VOLUME_SIZE + 1
+	var volumes [n_volumes]*byte
+	var index_starting int
+	for i := 0; i < n_volumes - 1; i++ {
+		index_starting := i * VOLUME_SIZE
+		volumes[i] = &(packaged_data[index_starting : index_starting+VOLUME_SIZE])
+	}
+	// Pad last volume
+	var last_volume [VOLUME_SIZE]byte
+	volumes[n_volumes - 1] =
+
 	userlib.DatastoreSet(UUID, packaged_data)
 	//End of toy implementation
 
 	return
 }
 
-// This adds on to an existing file.
+// This adds on to an existings file.
 //
 // Append should be efficient, you shouldn't rewrite or reencrypt the
 // existing file, but only whatever additional information and
