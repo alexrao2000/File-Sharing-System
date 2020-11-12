@@ -286,7 +286,10 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		return nil, err
 	}
 	for index, volume := range volumes {
-		// Encrypt
+		salt_volume_encryption, err := hex.DecodeString('volume_encryption')
+		if err != nil {
+			return nil, err
+		}
 		iv = userlib.RandomBytes(userlib.AESBlockSize)
 		k_volume = userlib.HashKDF(k_file,
 			salt_volume_encryption + strconv.Itoa(index))[:K_SIZE]
