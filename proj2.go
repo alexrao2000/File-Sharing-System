@@ -31,7 +31,7 @@ import (
 
 	// Optional. You can remove the "_" there, but please do not touch
 	// anything else within the import bracket.
-	_ "strconv"
+	"strconv"
 	// if you are looking for fmt, we don't give you fmt, but you can use userlib.DebugMsg.
 	// see someUsefulThings() below:
 )
@@ -212,6 +212,14 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 // The plaintext of the filename + the plaintext and length of the filename
 // should NOT be revealed to the datastore!
 func (userdata *User) StoreFile(filename string, data []byte) {
+	// Parameter
+	var VOLUME_SIZE int = 1073741824 // 2^30 bytes
+	IV_SIZE := 32
+	K_SIZE := 32
+
+	userlib.DebugMsg("AES block size is %v", userlib.AESBlockSize)
+	userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
+
 	// Encoding
 	UUID, _ := uuid.FromBytes([]byte(filename + userdata.Username)[:16])
 	// TODO: secure UUID
@@ -222,23 +230,57 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	// if err != nil {
 	// 	return nil, err
 	// }
-	var VOLUME_SIZE int = 1073741824             // 2^30 bytes
 	data_size := len(packaged_data) // bytes
 	var n_volumes int = data_size/VOLUME_SIZE + 1
 	var volumes [n_volumes]*byte
 	var index_starting int
-	for i := 0; i < n_volumes - 1; i++ {
+	for i := 0; i <= n_volumes - 2; i++ {
 		index_starting := i * VOLUME_SIZE
-		volumes[i] = &(packaged_data[index_starting : index_starting+VOLUME_SIZE])
+		volumes[i] = &(packaged_data[index_starting
+			: index_starting+VOLUME_SIZE])
+	}
+	// Check if last volume has remainder data
+	remainder_data_size := data_size % VOLUME_SIZE
+	var last_volume [VOLUME_SIZE]byte
+	if remainder_data_size != 0 {
+		copy(last_volume, packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
 	}
 	// Pad last volume
-	var last_volume [VOLUME_SIZE]byte
-	volumes[n_volumes - 1] =
+	pad := VOLUME_SIZE - remainder_data_size
+	for j := remainder_data_size; j < VOLUME_SIZE; j++ {
+		last_volume[j] = pad
+	}
+	volumes[n_volumes - 1] = &last_volume
+
+	// Encryption
+	k_file = userlib.RandomBytes(K_SIZE)
+	var iv [IV_SIZE]byte
+	var k_volume [K_SIZE]byte
+	var volumes_encrypted [n_volumes]*byte
+	for index, volume := range volumes {
+		salt_volume_encryption, err := hex.DecodeString('volume_encryption')
+		if err != nil {
+			return nil, err
+		}
+		iv = userlib.RandomBytes(IV_SIZE)
+		k_volume = userlib.HashKDF(k_file,
+			'volume encryption' + strconv.Itoa(index))
+		defer HandlePanics()
+		volumes_encrypted[index] = userlib.SymEnc(k_volume, iv, *volumes[index])
+
+	}
 
 	userlib.DatastoreSet(UUID, packaged_data)
 	//End of toy implementation
 
 	return
+}
+
+// This handles panics and should print the error
+func HandlePanics()  {
+	if recovery := recover(); recovery != nil {
+		userlib.DebugMsg("DO NOT PANIC:", recovery)
+	}
 }
 
 // This adds on to an existings file.
