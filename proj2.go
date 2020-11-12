@@ -248,7 +248,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		}
 		iv = userlib.RandomBytes(IV_SIZE)
 		k_volume = userlib.HashKDF(k_file,
-			'volume encryption' + strconv.Itoa(index))
+			'volume encryption' + strconv.Itoa(index))[:K_SIZE]
 		defer HandlePanics()
 		volumes_encrypted[index] = userlib.SymEnc(k_volume, iv, *volumes[index])
 
