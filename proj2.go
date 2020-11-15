@@ -117,7 +117,7 @@ func StorageKeysPublicKey(username string) (string, string) {
 // the attackers may possess a precomputed tables containing
 // hashes of common passwords downloaded from the internet.
 func InitUser(username string, password string) (userdataptr *User, err error) {
-	const k_password_len uint32 = 32
+	const k_password_len uint32 = 16
 
 	var userdata User
 	userdataptr = &userdata
@@ -134,8 +134,9 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	userdata.K_DS_private = K_DS_private
 
 	//store public keys
-	k_pubkey = userlib.hash(username)
-	userlib.KeystoreSet(k_pubkey, k_pub+k_DS_pub)
+	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
+	userlib.KeystoreSet(k_pubkey, k_pub)
+	userlib.KeystoreSet(k_DSkey, k_DS_pub)
 
 	//set username
 	userdata.Username = username
