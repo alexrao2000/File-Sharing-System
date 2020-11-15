@@ -199,6 +199,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	// Parameter
 	var VOLUME_SIZE int = 1073741824 // 2^30 bytes
 	K_SIZE := 32
+	K_MAC_SIZE := 16
 
 	userlib.DebugMsg("AES block size is %v", userlib.AESBlockSize)
 	userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
@@ -235,23 +236,41 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	}
 	volumes[n_volumes - 1] = &last_volume
 
-	// Encryption
+	// Encryption & authentication
 	k_file = userlib.RandomBytes(K_SIZE)
 	var iv [userlib.AESBlockSize]byte
 	var k_volume [K_SIZE]byte
 	var volumes_encrypted [n_volumes]*byte
+	var volumes_MAC [n_volumes]*byte
+	salt_volume_encryption, err := hex.DecodeString('volume_encryption')
+	if err != nil {
+		return nil, err
+	}
+	salt_volume_authentication, err := hex.DecodeString('volume_authentication')
+	if err != nil {
+		return nil, err
+	}
 	for index, volume := range volumes {
-		salt_volume_encryption, err := hex.DecodeString('volume_encryption')
-		if err != nil {
-			return nil, err
-		}
+		// Encrypt
 		iv = userlib.RandomBytes(userlib.AESBlockSize)
 		k_volume = userlib.HashKDF(k_file,
-			'volume encryption' + strconv.Itoa(index))[:K_SIZE]
+			salt_volume_encryption + strconv.Itoa(index))[:K_SIZE]
 		defer HandlePanics()
 		volumes_encrypted[index] = userlib.SymEnc(k_volume, iv, *volumes[index])
 
+		// Authentication
+		k_volume_MAC = userlib.HashKDF(k_file,
+			salt_volume_authentication + strconv.Itoa(index))[:K_MAC_SIZE]
+		volumes_MAC[index] = userlib.HMACEval(k_volume_MAC, *volumes[index])
 	}
+
+	// Fetch public keys
+	k_pubkey = uuid.FromBytes(userlib.Hash(User.Username)[:16])
+	userlib.KeystoreGet(k_pubkey)
+
+	// PKE & Publish key
+	k_file_front_padded = append(userlib.RandomBytes(K_SIZE), k_file)
+	k_file_PKE = PKEEnc()
 
 	userlib.DatastoreSet(UUID, packaged_data)
 	//End of toy implementation
