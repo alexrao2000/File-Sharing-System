@@ -92,6 +92,8 @@ type User struct {
 	// be public (start with a capital letter)
 }
 
+// HELPERS start here
+
 // Return storage keys of public PKE & DS keys, K_PUBKEY & K_DSKEY as strings,
 // for user with USERNAME
 func StorageKeysPublicKey(username string) (string, string) {
@@ -109,6 +111,15 @@ func StorageKeysPublicKey(username string) (string, string) {
 	k_DSkey, _ := uuid.FromBytes(hash_DS[:16])
 	return k_pubkey.String(), k_DSkey.String()
 }
+
+// This handles panics and should print the error
+func HandlePanics()  {
+	if recovery := recover(); recovery != nil {
+		userlib.DebugMsg("DO NOT PANIC:", recovery)
+	}
+}
+
+// HELPERS end here
 
 // This creates a user.  It will only be called once for a user
 // (unless the keystore and datastore are cleared during testing purposes)
@@ -232,6 +243,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 // should NOT be revealed to the datastore!
 func (userdata *User) StoreFile(filename string, data []byte) {
 	// Parameter
+<<<<<<< HEAD
 	var VOLUME_SIZE int = 1073741824 // 2^30 bytes
 <<<<<<< HEAD
 	IV_SIZE := 32
@@ -240,6 +252,10 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	K_SIZE := 32
 	K_MAC_SIZE := 16
 >>>>>>> Fetching pub keys
+=======
+	const VOLUME_SIZE int = 1073741824 // 2^30 bytes
+	const k_password_len uint32 = 16
+>>>>>>> Fetch pub keys
 
 	userlib.DebugMsg("AES block size is %v", userlib.AESBlockSize)
 	userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
@@ -277,52 +293,58 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	volumes[n_volumes - 1] = &last_volume
 
 	// Encryption & authentication
-	k_file = userlib.RandomBytes(K_SIZE)
+	k_file = userlib.RandomBytes(k_password_len)
 	var iv [userlib.AESBlockSize]byte
-	var k_volume [K_SIZE]byte
+	var k_volume [k_password_len]byte
 	var volumes_encrypted [n_volumes]*byte
 	var volumes_MAC [n_volumes]*byte
-	salt_volume_encryption, err := hex.DecodeString('volume_encryption')
+	salt_volume_encryption, err := hex.DecodeString("volume_encryption")
 	if err != nil {
-		return nil, err
+		userlib.DebugMsg("%v", err)
+		return nil, nil
 	}
-	salt_volume_authentication, err := hex.DecodeString('volume_authentication')
+	salt_volume_authentication, err := hex.DecodeString("volume_authentication")
 	if err != nil {
-		return nil, err
+		userlib.DebugMsg("%v", err)
+		return nil, nil
 	}
 	for index, volume := range volumes {
+		index_string = strconv.Itoa(index)
+
 		// Encrypt
 		iv = userlib.RandomBytes(userlib.AESBlockSize)
 		k_volume = userlib.HashKDF(k_file,
-			salt_volume_encryption + strconv.Itoa(index))[:K_SIZE]
+			salt_volume_encryption + index_string)[:k_password_len]
 		defer HandlePanics()
 		volumes_encrypted[index] = userlib.SymEnc(k_volume, iv, *volumes[index])
 
 		// Authentication
 		k_volume_MAC = userlib.HashKDF(k_file,
-			salt_volume_authentication + strconv.Itoa(index))[:K_MAC_SIZE]
+			salt_volume_authentication + index_string)[:k_password_len]
 		volumes_MAC[index] = userlib.HMACEval(k_volume_MAC, *volumes[index])
 	}
 
 	// Fetch public keys
-	k_pubkey = uuid.FromBytes(userlib.Hash(User.Username)[:16])
-	userlib.KeystoreGet(k_pubkey)
+	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
+	k_pub, ok := userlib.KeystoreGet(k_pubkey)
+	if !ok {
+		userlib.DebugMsg("%v", errors.New(strings.ToTitle("Public key fetch failed")))
+		return nil, nil
+	}
+	k_DS_pub, ok := userlib.KeystoreGet(k_DSkey)
+	if !ok {
+		userlib.DebugMsg("%v", errors.New(strings.ToTitle("Public DS key fetch failed")))
+		return nil, nil
+	}
 
-	// PKE & Publish key
-	k_file_front_padded = append(userlib.RandomBytes(K_SIZE), k_file)
+	// PKE & Publish key TODO
+	k_file_front_padded = append(userlib.RandomBytes(k_password_len), k_file)
 	k_file_PKE = PKEEnc()
 
 	userlib.DatastoreSet(UUID, packaged_data)
 	//End of toy implementation
 
 	return
-}
-
-// This handles panics and should print the error
-func HandlePanics()  {
-	if recovery := recover(); recovery != nil {
-		userlib.DebugMsg("DO NOT PANIC:", recovery)
-	}
 }
 
 // This adds on to an existings file.
