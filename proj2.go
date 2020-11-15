@@ -85,8 +85,8 @@ func bytesToUUID(data []byte) (ret uuid.UUID) {
 // The structure definition for a user record
 type User struct {
 	Username string
-	K_private PKEDecKey
-	K_DS_private DSSignKey
+	K_private userlib.PKEDecKey
+	K_DS_private userlib.DSSignKey
 
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
@@ -184,7 +184,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	hmac_cyphertext = userlib.HashKDF(k_user_auth, cyphertext_user)
 	userlib.DatastoreSet(ID_user, hmac_cyphertext+cyphertext_user)
 
-	return &userdata, nil
+	return userdataptr, nil
 }
 
 // This fetches the user information from the Datastore.  It should
@@ -193,6 +193,8 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 func GetUser(username string, password string) (userdataptr *User, err error) {
 	var userdata User
 	userdataptr = &userdata
+
+
 
 	return userdataptr, nil
 }
