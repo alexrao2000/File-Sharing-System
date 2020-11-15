@@ -93,6 +93,14 @@ type User struct {
 	// be public (start with a capital letter)
 }
 
+// Return storage keys of public PKE & DS keys, K_PUBKEY & K_DSKEY as strings,
+// for user with USERNAME
+func StorageKeysPublicKey(username string) (string, string) {
+	k_pubkey = uuid.FromBytes(userlib.Hash(username + "public_key")[:16])
+	k_DSkey = uuid.FromBytes(userlib.Hash(username + "DS_key")[:16])
+	return uuid.String(k_pubkey), uuid.String(k_DSkey)
+}
+
 // This creates a user.  It will only be called once for a user
 // (unless the keystore and datastore are cleared during testing purposes)
 
