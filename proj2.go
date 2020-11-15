@@ -180,7 +180,9 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	ID_user, _ := uuid.FromBytes(hmac_username)
 
 	// Encryption
-	userlib.symEnc()
+	cyphertext_user = userlib.symEnc(k_user_encrypt, userlib.AESBlockSize, userdata)
+	hmac_cyphertext = userlib.HashKDF(k_user_auth, cyphertext_user)
+	userlib.DatastoreSet(ID_user, hmac_cyphertext+cyphertext_user)
 
 	return &userdata, nil
 }
