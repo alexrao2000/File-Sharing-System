@@ -233,8 +233,13 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 func (userdata *User) StoreFile(filename string, data []byte) {
 	// Parameter
 	var VOLUME_SIZE int = 1073741824 // 2^30 bytes
+<<<<<<< HEAD
 	IV_SIZE := 32
 	K_SIZE := 16
+=======
+	K_SIZE := 32
+	K_MAC_SIZE := 16
+>>>>>>> Fetching pub keys
 
 	userlib.DebugMsg("AES block size is %v", userlib.AESBlockSize)
 	userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
@@ -286,10 +291,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		return nil, err
 	}
 	for index, volume := range volumes {
-		salt_volume_encryption, err := hex.DecodeString('volume_encryption')
-		if err != nil {
-			return nil, err
-		}
+		// Encrypt
 		iv = userlib.RandomBytes(userlib.AESBlockSize)
 		k_volume = userlib.HashKDF(k_file,
 			salt_volume_encryption + strconv.Itoa(index))[:K_SIZE]
