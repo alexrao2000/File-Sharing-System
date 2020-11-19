@@ -339,7 +339,11 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 
 	// PKE & Publish key TODO
 	k_file_front_padded = append(userlib.RandomBytes(k_password_len), k_file)
-	k_file_PKE = PKEEnc()
+	k_file_PKE, err := PKEEnc(k_pub, k_file_front_padded)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return nil, nil
+	}
 
 	userlib.DatastoreSet(UUID, packaged_data)
 	//End of toy implementation
