@@ -96,9 +96,19 @@ type User struct {
 // Return storage keys of public PKE & DS keys, K_PUBKEY & K_DSKEY as strings,
 // for user with USERNAME
 func StorageKeysPublicKey(username string) (string, string) {
-	k_pubkey = uuid.FromBytes(userlib.Hash(username + "public_key")[:16])
-	k_DSkey = uuid.FromBytes(userlib.Hash(username + "DS_key")[:16])
-	return uuid.String(k_pubkey), uuid.String(k_DSkey)
+	byte_pub, err := hex.DecodeString(username + "public_key")
+	if err != nil {
+		return "", ""
+	}
+	byte_DS, err := hex.DecodeString(username + "DS_key")
+	if err != nil {
+		return "", ""
+	}
+	hash_pub := userlib.Hash(byte_pub)
+	hash_DS := userlib.Hash(byte_DS)
+	k_pubkey, _ := uuid.FromBytes(hash_pub[:16])
+	k_DSkey, _ := uuid.FromBytes(hash_DS[:16])
+	return k_pubkey.String(), k_DSkey.String()
 }
 
 // This creates a user.  It will only be called once for a user
@@ -124,10 +134,10 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 
 	//Adding private keys
 	k_pub, K_private, _ := userlib.PKEKeyGen()
-	userlib.DebugMsg("Key is %v, %v", k_pub, k_Private)
+	userlib.DebugMsg("Key is %v, %v", k_pub, K_private)
 
 	k_DS_pub, K_DS_private, _ := userlib.DSKeyGen()
-	userlib.DebugMsg("Key is %v, %v", k_DS_pub, k_DS_Private)
+	userlib.DebugMsg("Key is %v, %v", k_DS_pub, K_DS_private)
 
 	//store private keys
 	userdata.K_private = K_private
