@@ -136,7 +136,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	k_pub, K_private, _ := userlib.PKEKeyGen()
 	userlib.DebugMsg("Key is %v, %v", k_pub, K_private)
 
-	k_DS_pub, K_DS_private, _ := userlib.DSKeyGen()
+	K_DS_private, k_DS_pub, _ := userlib.DSKeyGen()
 	userlib.DebugMsg("Key is %v, %v", k_DS_pub, K_DS_private)
 
 	//store private keys
@@ -176,31 +176,38 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 		byte_username, k_password_len)
 
 	//HKDF
-	k_user_encrypt, err := userlib.HashKDF(k_password,
-		salt_encrypt)[:k_password_len]
+	k_user_encrypt, err := userlib.HashKDF(k_password, salt_encrypt)
+	k_user_encrypt = k_user_encrypt[:k_password_len]
 	if err != nil {
 		return nil, err
 	}
-	k_user_auth, err := userlib.HashKDF(k_password, salt_auth)[:k_password_len]
+	k_user_auth, err := userlib.HashKDF(k_password, salt_auth)
+	k_user_auth = k_user_auth[:k_password_len]
 	if err != nil {
 		return nil, err
 	}
-	k_user_storage, err := userlib.HashKDF(k_password,
-		salt_storage)[:k_password_len]
+	k_user_storage, err := userlib.HashKDF(k_password, salt_storage)
+	k_user_storage = k_user_storage[:k_password_len]
 	if err != nil {
 		return nil, err
 	}
 
-	hmac_username, err := userlib.HashKDF(username,
-		k_user_storage)[:k_password_len]
+	hmac_username, err := userlib.HashKDF(byte_username, k_user_storage)
+	hmac_username = hmac_username[:k_password_len]
 	if err != nil {
 		return nil, err
 	}
-	ID_user, _ := uuid.FromBytes(hmac_username)
+	ID_user, err := uuid.FromBytes(hmac_username)
+	if err != nil {
+		return nil, err
+	}
 
 	// Encryption
-	cyphertext_user = userlib.symEnc(k_user_encrypt, userlib.AESBlockSize, userdata)
-	hmac_cyphertext = userlib.HashKDF(k_user_auth, cyphertext_user)
+	cyphertext_user := userlib.SymEnc(k_user_encrypt, userlib.AESBlockSize, userdata)
+	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
+	if err != nil {
+		return nil, err
+	}
 	userlib.DatastoreSet(ID_user, hmac_cyphertext+cyphertext_user)
 
 	return userdataptr, nil
