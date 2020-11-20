@@ -209,7 +209,8 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	if err != nil {
 		return nil, err
 	}
-	userlib.DatastoreSet(ID_user, hmac_cyphertext+cyphertext_user)
+	hmac_cpt := append(hmac_cyphertext, cyphertext_user...)
+	userlib.DatastoreSet(ID_user, hmac_cpt)
 
 	return userdataptr, nil
 }
