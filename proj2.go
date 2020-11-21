@@ -152,7 +152,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	userdata.Username = username
 
 	// Encoding
-	bytes, _ := json.Marshal(userdataptr)
+	user_struct, _ := json.Marshal(userdataptr)
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
 
 	salt_encrypt, _ := json.Marshal("user_encrypt")
@@ -200,7 +200,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 
 	// Encryption
 	iv := userlib.RandomBytes(userlib.AESBlockSize)
-	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, bytes)
+	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct)
 	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
 	if err != nil {
 		return nil, err
