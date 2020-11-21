@@ -116,7 +116,7 @@ func StorageKeysPublicKey(username string) (string, string) {
 // i.e. padding with the number (as a byte) of elements to pad,
 // from PRESENT_LENGTH to TARGET_LENGTH
 // Do nothing if TARGET_LENGTH is no longer than PRESENT_LENGTH is
-func Pad(slice byte[], present_length int, target_length int) () {
+func Pad(slice byte[], present_length int, target_length int) (byte[]) {
 	pad := target_length - present_length
 	if pad > 0 {
 		for j := present_length; j < target_length; j++ {
@@ -288,11 +288,8 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	if remainder_data_size != 0 {
 		copy(last_volume, packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
 	}
-	// Pad last volume
-	pad := VOLUME_SIZE - remainder_data_size
-	for j := remainder_data_size; j < VOLUME_SIZE; j++ {
-		last_volume[j] = pad
-	}
+	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE)
+	if
 	volumes[n_volumes - 1] = &last_volume
 
 	// Encryption & authentication
