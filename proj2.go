@@ -164,10 +164,9 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 
 	// Key generation
 	byte_username := []byte(username)
-
 	byte_password := []byte(password)
 
-	userlib.DebugMsg("DEBUG: user JSON %s\n", string(byte_username))
+	//userlib.DebugMsg("DEBUG: key gen %s\n", string(byte_username))
 
 	k_password := userlib.Argon2Key(byte_password, byte_username, k_password_len)
 
@@ -200,7 +199,8 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 
 	// Encryption
 	iv := userlib.RandomBytes(userlib.AESBlockSize)
-	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct)
+	//replace slice w/ padding in following line when possible
+	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len]) 
 	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
 	if err != nil {
 		return nil, err
