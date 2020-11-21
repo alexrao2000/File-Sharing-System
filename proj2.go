@@ -243,19 +243,8 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 // should NOT be revealed to the datastore!
 func (userdata *User) StoreFile(filename string, data []byte) {
 	// Parameter
-<<<<<<< HEAD
-	var VOLUME_SIZE int = 1073741824 // 2^30 bytes
-<<<<<<< HEAD
-	IV_SIZE := 32
-	K_SIZE := 16
-=======
-	K_SIZE := 32
-	K_MAC_SIZE := 16
->>>>>>> Fetching pub keys
-=======
 	const VOLUME_SIZE int = 1073741824 // 2^30 bytes
 	const k_password_len uint32 = 16
->>>>>>> Fetch pub keys
 
 	userlib.DebugMsg("AES block size is %v", userlib.AESBlockSize)
 	userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
