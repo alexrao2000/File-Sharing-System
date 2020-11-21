@@ -112,6 +112,20 @@ func StorageKeysPublicKey(username string) (string, string) {
 	return k_pubkey.String(), k_DSkey.String()
 }
 
+// Pad SLICE according to the PKCS #7 scheme,
+// i.e. padding with the number (as a byte) of elements to pad,
+// from PRESENT_LENGTH to TARGET_LENGTH
+// Do nothing if TARGET_LENGTH is no longer than PRESENT_LENGTH is
+func Pad(slice byte[], present_length int, target_length int) () {
+	pad := target_length - present_length
+	if pad > 0 {
+		for j := present_length; j < target_length; j++ {
+			slice[j] = pad
+		}
+	}
+	return slice
+}
+
 // This handles panics and should print the error
 func HandlePanics()  {
 	if recovery := recover(); recovery != nil {
