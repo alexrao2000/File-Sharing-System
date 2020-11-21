@@ -115,11 +115,12 @@ func StorageKeysPublicKey(username string) (string, string) {
 // i.e. padding with the number (as a byte) of elements to pad,
 // from PRESENT_LENGTH to TARGET_LENGTH
 // Do nothing if TARGET_LENGTH is no longer than PRESENT_LENGTH is
-func Pad(slice []byte, present_length int, target_length int) (padded_bytes []byte) {
+func Pad(slice []byte, present_length int, target_length int) []byte {
 	pad := target_length - present_length
-	if pad > 0 {
+	if pad > 0 && len(slice) <= target_length {
+		pad_byte := byte(pad)
 		for j := present_length; j < target_length; j++ {
-			slice[j] = byte(pad)
+			slice[j] = pad_byte
 		}
 	}
 	return slice
