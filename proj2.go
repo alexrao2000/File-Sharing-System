@@ -115,11 +115,11 @@ func StorageKeysPublicKey(username string) (string, string) {
 // i.e. padding with the number (as a byte) of elements to pad,
 // from PRESENT_LENGTH to TARGET_LENGTH
 // Do nothing if TARGET_LENGTH is no longer than PRESENT_LENGTH is
-func Pad(slice byte[], present_length int, target_length int) () {
+func Pad(slice []byte, present_length int, target_length int) (padded_bytes []byte) {
 	pad := target_length - present_length
 	if pad > 0 {
 		for j := present_length; j < target_length; j++ {
-			slice[j] = pad
+			slice[j] = byte(pad)
 		}
 	}
 	return slice
@@ -213,7 +213,9 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 
 	// Encryption
 	iv := userlib.RandomBytes(userlib.AESBlockSize)
-	//replace slice w/ padding in following line when possible
+	if len(user_struct) < 16 {
+		user_struct = Pad(user_struct, len(user_struct), 16)
+	}
 	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len]) 
 	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
 	if err != nil {
