@@ -31,8 +31,7 @@ import (
 
 	// Optional. You can remove the "_" there, but please do not touch
 	// anything else within the import bracket.
-	_ "strconv"
-
+	"strconv"
 	// if you are looking for fmt, we don't give you fmt, but you can use userlib.DebugMsg.
 	// see someUsefulThings() below:
 )
@@ -68,7 +67,7 @@ func someUsefulThings() {
 	// And a random RSA key.  In this case, ignoring the error
 	// return value
 	var pk userlib.PKEEncKey
-    var sk userlib.PKEDecKey
+	var sk userlib.PKEDecKey
 	pk, sk, _ = userlib.PKEKeyGen()
 	userlib.DebugMsg("Key is %v, %v", pk, sk)
 }
@@ -87,11 +86,15 @@ type User struct {
 	Username string
 	K_private userlib.PKEDecKey
 	K_DS_private userlib.DSSignKey
+	AES_key_storage_keys map[string]uuid.UUID
+	AES_key_indices map[string]int
 
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
 	// be public (start with a capital letter)
 }
+
+// HELPERS start here
 
 // Return storage keys of public PKE & DS keys, K_PUBKEY & K_DSKEY as strings,
 // for user with USERNAME
@@ -113,8 +116,9 @@ func StorageKeysPublicKey(username string) (string, string) {
 
 // Pad SLICE according to the PKCS #7 scheme,
 // i.e. padding with the number (as a byte) of elements to pad,
-// from PRESENT_LENGTH to TARGET_LENGTH
-// Do nothing if TARGET_LENGTH is no longer than PRESENT_LENGTH is
+// from PRESENT_LENGTH to TARGET_LENGTH.
+// Do nothing if TARGET_LENGTH is no longer than PRESENT_LENGTH
+// or the length of SLICE are.
 func Pad(slice []byte, present_length int, target_length int) []byte {
 	pad := target_length - present_length
 	if pad > 0 && len(slice) <= target_length {
@@ -125,6 +129,15 @@ func Pad(slice []byte, present_length int, target_length int) []byte {
 	}
 	return slice
 }
+
+// This handles panics and should print the error
+func HandlePanics()  {
+	if recovery := recover(); recovery != nil {
+		userlib.DebugMsg("DO NOT PANIC:", recovery)
+	}
+}
+
+// HELPERS end here
 
 // This creates a user.  It will only be called once for a user
 // (unless the keystore and datastore are cleared during testing purposes)
@@ -157,6 +170,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	//store private keys
 	userdata.K_private = K_private
 	userdata.K_DS_private = K_DS_private
+	userdata.AES_key_storage_keys := make(map[string]uuid.UUID)
 
 	//store public keys
 	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
@@ -331,17 +345,102 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 // The plaintext of the filename + the plaintext and length of the filename
 // should NOT be revealed to the datastore!
 func (userdata *User) StoreFile(filename string, data []byte) {
+	// Parameter
+	const VOLUME_SIZE int = 1073741824 // 2^30 bytes
+	const k_password_len uint32 = 16
 
-	//TODO: This is a toy implementation.
+	userlib.DebugMsg("AES block size is %v", userlib.AESBlockSize)
+	userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
+
+	// Encoding
 	UUID, _ := uuid.FromBytes([]byte(filename + userdata.Username)[:16])
+	// TODO: secure UUID
 	packaged_data, _ := json.Marshal(data)
+
+	// Splitting
+	// data_string, err := hex.DecodeString(packaged_data)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	data_size := len(packaged_data) // bytes
+	var n_volumes int = data_size/VOLUME_SIZE + 1
+	var volumes [n_volumes]*byte
+	var index_starting int
+	for i := 0; i <= n_volumes - 2; i++ {
+		index_starting := i * VOLUME_SIZE
+		volumes[i] = &(packaged_data[index_starting
+			: index_starting+VOLUME_SIZE])
+	}
+	// Check if last volume has remainder data
+	remainder_data_size := data_size % VOLUME_SIZE
+	var last_volume [VOLUME_SIZE]byte
+	if remainder_data_size != 0 {
+		copy(last_volume, packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
+	}
+	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE)
+	if
+	volumes[n_volumes - 1] = &last_volume
+
+	// Encryption & authentication
+	k_file = userlib.RandomBytes(k_password_len)
+	var iv [userlib.AESBlockSize]byte
+	var k_volume [k_password_len]byte
+	var volumes_encrypted [n_volumes]*byte
+	var volumes_MAC [n_volumes]*byte
+	salt_volume_encryption, err := hex.DecodeString("volume_encryption")
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return nil, nil
+	}
+	salt_volume_authentication, err := hex.DecodeString("volume_authentication")
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return nil, nil
+	}
+	for index, volume := range volumes {
+		index_string = strconv.Itoa(index)
+
+		// Encrypt
+		iv = userlib.RandomBytes(userlib.AESBlockSize)
+		k_volume = userlib.HashKDF(k_file,
+			salt_volume_encryption + index_string)[:k_password_len]
+		defer HandlePanics()
+		volumes_encrypted[index] = userlib.SymEnc(k_volume, iv, *volumes[index])
+
+		// Authentication
+		k_volume_MAC = userlib.HashKDF(k_file,
+			salt_volume_authentication + index_string)[:k_password_len]
+		volumes_MAC[index] = userlib.HMACEval(k_volume_MAC, *volumes[index])
+	}
+
+	// Fetch public keys
+	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
+	k_pub, ok := userlib.KeystoreGet(k_pubkey)
+	if !ok {
+		userlib.DebugMsg("%v", errors.New(strings.ToTitle("Public key fetch failed")))
+		return nil, nil
+	}
+
+	// PKE & Publish key TODO
+	k_file_front_padded := append(userlib.RandomBytes(k_password_len), k_file)
+	pke_k_file, err := PKEEnc(k_pub, k_file_front_padded)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return nil, nil
+	}
+	ds_k_file := userlib.DSSign(userdata.K_DS_private, pke_k_file)
+	ID_k := uuid.New()
+	userdata.AES_key_storage_keys[filename] = ID_k
+	userdata.AES_key_indices[filename] = 0
+	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
+
 	userlib.DatastoreSet(UUID, packaged_data)
 	//End of toy implementation
 
 	return
 }
 
-// This adds on to an existing file.
+// This adds on to an existings file.
 //
 // Append should be efficient, you shouldn't rewrite or reencrypt the
 // existing file, but only whatever additional information and
