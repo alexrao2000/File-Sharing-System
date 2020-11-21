@@ -134,10 +134,10 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 
 	//Adding private keys
 	k_pub, K_private, _ := userlib.PKEKeyGen()
-	userlib.DebugMsg("Key is %v, %v", k_pub, K_private)
+	//userlib.DebugMsg("Key is %v, %v", k_pub, K_private)
 
 	K_DS_private, k_DS_pub, _ := userlib.DSKeyGen()
-	userlib.DebugMsg("Key is %v, %v", k_DS_pub, K_DS_private)
+	//userlib.DebugMsg("Key is %v, %v", k_DS_pub, K_DS_private)
 
 	//store private keys
 	userdata.K_private = K_private
@@ -153,27 +153,23 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 
 	// Encoding
 	bytes, _ := json.Marshal(userdataptr)
-	userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
+	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
 
 	salt_encrypt, _ := json.Marshal("user_encrypt")
-	userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
+	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
 	salt_auth, _ := json.Marshal("user_auth")
-	userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
+	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
 	salt_storage, _ := json.Marshal("user_storage")
-	userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
+	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
 
 	// Key generation
-	byte_username, err := hex.DecodeString(username)
-	if err != nil {
-		return nil, err
-	}
-	byte_password, err := hex.DecodeString(password)
-	if err != nil {
-		return nil, err
-	}
+	byte_username := []byte(username)
 
-	k_password := userlib.Argon2Key(byte_password,
-		byte_username, k_password_len)
+	byte_password := []byte(password)
+
+	userlib.DebugMsg("DEBUG: user JSON %s\n", string(byte_username))
+
+	k_password := userlib.Argon2Key(byte_password, byte_username, k_password_len)
 
 	//HKDF
 	k_user_encrypt, err := userlib.HashKDF(k_password, salt_encrypt)
@@ -192,7 +188,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 		return nil, err
 	}
 
-	hmac_username, err := userlib.HashKDF(byte_username, k_user_storage)
+	hmac_username, err := userlib.HashKDF(k_user_storage, byte_username)
 	hmac_username = hmac_username[:k_password_len]
 	if err != nil {
 		return nil, err
