@@ -264,6 +264,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	// Parameter
 	const VOLUME_SIZE int = 1073741824 // 2^30 bytes
 	const k_password_len uint32 = 16
+	const ENCRYPTED_VOLUME_SIZE = VOLUME_SIZE + userlib.AESBlockSize
 
 	userlib.DebugMsg("AES block size is %v", userlib.AESBlockSize)
 	userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
@@ -280,12 +281,12 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	// }
 	data_size := len(packaged_data) // bytes
 	var n_volumes int = data_size/VOLUME_SIZE + 1
-	var volumes [n_volumes]*byte
+	var volumes [n_volumes][VOLUME_SIZE]byte
 	var index_starting int
 	for i := 0; i <= n_volumes - 2; i++ {
 		index_starting := i * VOLUME_SIZE
-		volumes[i] = &(packaged_data[index_starting
-			: index_starting+VOLUME_SIZE])
+		volumes[i] = packaged_data[index_starting
+			: index_starting+VOLUME_SIZE]
 	}
 	// Check if last volume has remainder data
 	remainder_data_size := data_size % VOLUME_SIZE
@@ -294,15 +295,14 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		copy(last_volume, packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
 	}
 	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE)
-	if
-	volumes[n_volumes - 1] = &last_volume
+	volumes[n_volumes - 1] = last_volume
 
 	// Encryption & authentication
 	k_file = userlib.RandomBytes(k_password_len)
 	var iv [userlib.AESBlockSize]byte
 	var k_volume [k_password_len]byte
-	var volumes_encrypted [n_volumes]*byte
-	var volumes_MAC [n_volumes]*byte
+	var volumes_encrypted [n_volumes][ENCRYPTED_VOLUME_SIZE]byte
+	var volumes_MAC [n_volumes][userlib.AESBlockSize]byte
 	salt_volume_encryption, err := hex.DecodeString("volume_encryption")
 	if err != nil {
 		userlib.DebugMsg("%v", err)
@@ -321,12 +321,12 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		k_volume = userlib.HashKDF(k_file,
 			salt_volume_encryption + index_string)[:k_password_len]
 		defer HandlePanics()
-		volumes_encrypted[index] = userlib.SymEnc(k_volume, iv, *volumes[index])
+		volumes_encrypted[index] = userlib.SymEnc(k_volume, iv, volumes[index])
 
 		// Authentication
 		k_volume_MAC = userlib.HashKDF(k_file,
 			salt_volume_authentication + index_string)[:k_password_len]
-		volumes_MAC[index] = userlib.HMACEval(k_volume_MAC, *volumes[index])
+		volumes_MAC[index] = userlib.HMACEval(k_volume_MAC, volumes[index]
 	}
 
 	// Fetch public keys
@@ -337,7 +337,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		return nil, nil
 	}
 
-	// PKE & Publish key TODO
+	// PKE & Publish key
 	k_file_front_padded := append(userlib.RandomBytes(k_password_len), k_file)
 	pke_k_file, err := PKEEnc(k_pub, k_file_front_padded)
 	if err != nil {
@@ -349,6 +349,8 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	userdata.AES_key_storage_keys[filename] = ID_k
 	userdata.AES_key_indices[filename] = 0
 	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
+
+	// Store data TODO
 
 	userlib.DatastoreSet(UUID, packaged_data)
 	//End of toy implementation
