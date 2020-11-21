@@ -269,165 +269,6 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	//store private keys
 	userdata.K_private = K_private
 	userdata.K_DS_private = K_DS_private
-
-	//store public keys
-	//k_pubkey, k_DSkey := StorageKeysPublicKey(username)
-	//userlib.KeystoreSet(k_pubkey, k_pub)
-	//userlib.KeystoreSet(k_DSkey, k_DS_pub)
-
-	//set username
-	userdata.Username = username
-
-	// Encoding
-	user_struct, _ := json.Marshal(userdataptr)
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
-
-	salt_encrypt, _ := json.Marshal("user_encrypt")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
-	salt_auth, _ := json.Marshal("user_auth")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
-	salt_storage, _ := json.Marshal("user_storage")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
-
-	// Key generation
-	byte_username := []byte(username)
-	byte_password := []byte(password)
-
-	//userlib.DebugMsg("DEBUG: key gen %s\n", string(byte_username))
-
-	k_password := userlib.Argon2Key(byte_password, byte_username, k_password_len)
-
-	//HKDF
-	k_user_encrypt, err := userlib.HashKDF(k_password, salt_encrypt)
-	k_user_encrypt = k_user_encrypt[:k_password_len]
-	if err != nil {
-		return nil, err
-	}
-	k_user_auth, err := userlib.HashKDF(k_password, salt_auth)
-	k_user_auth = k_user_auth[:k_password_len]
-	if err != nil {
-		return nil, err
-	}
-	k_user_storage, err := userlib.HashKDF(k_password, salt_storage)
-	k_user_storage = k_user_storage[:k_password_len]
-	if err != nil {
-		return nil, err
-	}
-
-	hmac_username, err := userlib.HashKDF(k_user_storage, byte_username)
-	hmac_username = hmac_username[:k_password_len]
-	if err != nil {
-		return nil, err
-	}
-	ID_user, err := uuid.FromBytes(hmac_username)
-	if err != nil {
-		return nil, err
-	}
-
-	// Encryption
-	iv := userlib.RandomBytes(userlib.AESBlockSize)
-	if len(user_struct) < 16 {
-		user_struct = Pad(user_struct, len(user_struct), 16)
-	}
-	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len]) 
-	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
-	if err != nil {
-		return nil, err
-	}
-	hmac_cpt := append(hmac_cyphertext, cyphertext_user...)
-	existing_user, ok := userlib.DatastoreGet(ID_user)
-	if ok != true {
-		err = errors.New("User does not exist")
-		return nil, err
-	}
-	if userlib.HMACEqual(hmac_cpt, existing_user) {
-		err = errors.New("Invalid user credentials")
-		return nil, err
-	}
-
-	//store private keys
-	userdata.K_private = K_private
-	userdata.K_DS_private = K_DS_private
-
-	//store public keys
-	//k_pubkey, k_DSkey := StorageKeysPublicKey(username)
-	//userlib.KeystoreSet(k_pubkey, k_pub)
-	//userlib.KeystoreSet(k_DSkey, k_DS_pub)
-
-	//set username
-	userdata.Username = username
-
-	// Encoding
-	user_struct, _ := json.Marshal(userdataptr)
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
-
-	salt_encrypt, _ := json.Marshal("user_encrypt")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
-	salt_auth, _ := json.Marshal("user_auth")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
-	salt_storage, _ := json.Marshal("user_storage")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
-
-	// Key generation
-	byte_username := []byte(username)
-	byte_password := []byte(password)
-
-	//userlib.DebugMsg("DEBUG: key gen %s\n", string(byte_username))
-
-	k_password := userlib.Argon2Key(byte_password, byte_username, k_password_len)
-
-	//HKDF
-	k_user_encrypt, err := userlib.HashKDF(k_password, salt_encrypt)
-	k_user_encrypt = k_user_encrypt[:k_password_len]
-	if err != nil {
-		return nil, err
-	}
-	k_user_auth, err := userlib.HashKDF(k_password, salt_auth)
-	k_user_auth = k_user_auth[:k_password_len]
-	if err != nil {
-		return nil, err
-	}
-	k_user_storage, err := userlib.HashKDF(k_password, salt_storage)
-	k_user_storage = k_user_storage[:k_password_len]
-	if err != nil {
-		return nil, err
-	}
-
-	hmac_username, err := userlib.HashKDF(k_user_storage, byte_username)
-	hmac_username = hmac_username[:k_password_len]
-	if err != nil {
-		return nil, err
-	}
-	ID_user, err := uuid.FromBytes(hmac_username)
-	if err != nil {
-		return nil, err
-	}
-
-	// Encryption
-
-	// Padding
-	pad_len := (len(user_struct) / 16 + 1) * 16
-	padded_struct := Pad(user_struct, len(user_struct), pad_len)
-
-	existing_user, ok := userlib.DatastoreGet(ID_user)
-	if ok != true {
-		err = errors.New("User does not exist")
-		return nil, err
-	}
-	
-
-	//Depad
-	struct_len := len(existing_user) - len(padded_struct)
-	eu_cyphertext := existing_user[struct_len:]
-	eu_plaintext := userlib.SymDec(k_user_encrypt, eu_cyphertext)
-	depadded_user := Depad(eu_plaintext)
-	if bytesEqual(depadded_user, user_struct) {
-		err = errors.New("Invalid user credentials")
-		return nil, err
-	}
-	json.Unmarshal(depadded_user, userdataptr)
-
-	return userdataptr, nil
 }
 
 // This stores a file in the datastore.
@@ -435,13 +276,98 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 // The plaintext of the filename + the plaintext and length of the filename
 // should NOT be revealed to the datastore!
 func (userdata *User) StoreFile(filename string, data []byte) {
+	// Parameter
+	const VOLUME_SIZE = 1073741824 // 2^30 bytes
+	const k_password_len uint32 = 16
+	const ENCRYPTED_VOLUME_SIZE = VOLUME_SIZE + userlib.AESBlockSize
 
-	//TODO: This is a toy implementation.
-	UUID, _ := uuid.FromBytes([]byte(filename + userdata.Username)[:16])
+	userlib.DebugMsg("AES block size is %v", userlib.AESBlockSize)
+	userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
+
+	// Encoding
 	packaged_data, _ := json.Marshal(data)
-	userlib.DatastoreSet(UUID, packaged_data)
-	//End of toy implementation
 
+	// Splitting
+	// data_string, err := hex.DecodeString(packaged_data)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	data_size := len(packaged_data) // bytes
+	var n_volumes int = data_size/VOLUME_SIZE + 1
+	var volumes [n_volumes][VOLUME_SIZE]byte
+	var volumes_encrypted [n_volumes]Volume
+	var index_starting int
+	for i := 0; i <= n_volumes - 2; i++ {
+		index_starting := i * VOLUME_SIZE
+		volumes[i] = packaged_data[index_starting
+			: index_starting+VOLUME_SIZE]
+		volumes_encrypted[i].N_pad = 0
+	}
+	// Check if last volume has remainder data
+	remainder_data_size := data_size % VOLUME_SIZE
+	var last_volume [VOLUME_SIZE]byte
+	if remainder_data_size != 0 {
+		copy(last_volume, packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
+	}
+	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE)
+	volumes_encrypted[-1].N_pad = VOLUME_SIZE - VOLUME_SIZE
+	volumes[-1] = last_volume
+
+	// Encryption & authentication
+	k_file = userlib.RandomBytes(k_password_len)
+	var iv [userlib.AESBlockSize]byte
+	var k_volume [k_password_len]byte
+	salt_volume_encryption, err := hex.DecodeString("volume_encryption")
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return nil, nil
+	}
+	salt_volume_authentication, err := hex.DecodeString("volume_authentication")
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return nil, nil
+	}
+	for index, volume := range volumes {
+		index_string = strconv.Itoa(index)
+
+		// Encrypt
+		iv = userlib.RandomBytes(userlib.AESBlockSize)
+		k_volume = userlib.HashKDF(k_file,
+			salt_volume_encryption + index_string)[:k_password_len]
+		defer HandlePanics()
+		volumes_encrypted[index].Ciphertext = userlib.SymEnc(k_volume, iv, volumes[index])
+
+		// Authentication
+		k_volume_MAC = userlib.HashKDF(k_file,
+			salt_volume_authentication + index_string)[:k_password_len]
+		volumes_encrypted[index].MAC = userlib.HMACEval(k_volume_MAC, volumes[index])
+	}
+
+	// Fetch public keys
+	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
+	k_pub, ok := userlib.KeystoreGet(k_pubkey)
+	if !ok {
+		userlib.DebugMsg("%v", errors.New(strings.ToTitle("Public key fetch failed")))
+		return nil, nil
+	}
+
+	// PKE & Publish key
+	k_file_front_padded := append(userlib.RandomBytes(k_password_len), k_file)
+	pke_k_file, err := PKEEnc(k_pub, k_file_front_padded)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return nil, nil
+	}
+	ds_k_file := userlib.DSSign(userdata.K_DS_private, pke_k_file)
+	ID_k := uuid.New()
+	userdata.AES_key_storage_keys[filename] = ID_k
+	userdata.AES_key_indices[filename] = 0
+	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
+
+	// Store data
+	stored, _ := json.Marshal(volumes_encrypted)
+	ID_file := uuid.FromBytes(userlib.Hash([]byte(ID_k))[:16])
+	userlib.DatastoreSet(ID_file, stored)
 	return
 }
 
