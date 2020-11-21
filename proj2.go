@@ -86,6 +86,8 @@ type User struct {
 	Username string
 	K_private userlib.PKEDecKey
 	K_DS_private userlib.DSSignKey
+	AES_key_storage_keys map[string]uuid.UUID
+	AES_key_indices map[string]int
 
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
@@ -114,13 +116,15 @@ func StorageKeysPublicKey(username string) (string, string) {
 
 // Pad SLICE according to the PKCS #7 scheme,
 // i.e. padding with the number (as a byte) of elements to pad,
-// from PRESENT_LENGTH to TARGET_LENGTH
-// Do nothing if TARGET_LENGTH is no longer than PRESENT_LENGTH is
-func Pad(slice byte[], present_length int, target_length int) (byte[]) {
+// from PRESENT_LENGTH to TARGET_LENGTH.
+// Do nothing if TARGET_LENGTH is no longer than PRESENT_LENGTH
+// or the length of SLICE are.
+func Pad(slice []byte, present_length int, target_length int) []byte {
 	pad := target_length - present_length
-	if pad > 0 {
+	if pad > 0 && len(slice) <= target_length {
+		pad_byte := byte(pad)
 		for j := present_length; j < target_length; j++ {
-			slice[j] = pad
+			slice[j] = pad_byte
 		}
 	}
 	return slice
@@ -166,6 +170,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	//store private keys
 	userdata.K_private = K_private
 	userdata.K_DS_private = K_DS_private
+	userdata.AES_key_storage := make(map[string]uuid.UUID)
 
 	//store public keys
 	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
@@ -331,19 +336,19 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		userlib.DebugMsg("%v", errors.New(strings.ToTitle("Public key fetch failed")))
 		return nil, nil
 	}
-	k_DS_pub, ok := userlib.KeystoreGet(k_DSkey)
-	if !ok {
-		userlib.DebugMsg("%v", errors.New(strings.ToTitle("Public DS key fetch failed")))
-		return nil, nil
-	}
 
 	// PKE & Publish key TODO
-	k_file_front_padded = append(userlib.RandomBytes(k_password_len), k_file)
-	k_file_PKE, err := PKEEnc(k_pub, k_file_front_padded)
+	k_file_front_padded := append(userlib.RandomBytes(k_password_len), k_file)
+	pke_k_file, err := PKEEnc(k_pub, k_file_front_padded)
 	if err != nil {
 		userlib.DebugMsg("%v", err)
 		return nil, nil
 	}
+	ds_k_file := userlib.DSSign(userdata.K_DS_private, pke_k_file)
+	ID_k := uuid.New()
+	userdata.AES_key_storage_keys[filename] = ID_k
+	userdata.AES_key_indices[filename] = 0
+	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
 
 	userlib.DatastoreSet(UUID, packaged_data)
 	//End of toy implementation
