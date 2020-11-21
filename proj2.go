@@ -201,7 +201,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	//store private keys
 	userdata.K_private = K_private
 	userdata.K_DS_private = K_DS_private
-	userdata.AES_key_storage_keys := make(map[string]uuid.UUID)
+	userdata.AES_key_storage_keys = make(map[string]uuid.UUID)
 
 	//store public keys
 	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
@@ -352,30 +352,26 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	}
 
 	// Encryption
-
-	// Padding
-	pad_len := (len(user_struct) / 16 + 1) * 16
-	padded_struct := Pad(user_struct, len(user_struct), pad_len)
-
+	iv := userlib.RandomBytes(userlib.AESBlockSize)
+	if len(user_struct) < 16 {
+		user_struct = Pad(user_struct, len(user_struct), 16)
+	}
+	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len])
+	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
+	if err != nil {
+		return nil, err
+	}
+	hmac_cpt := append(hmac_cyphertext, cyphertext_user...)
 	existing_user, ok := userlib.DatastoreGet(ID_user)
 	if ok != true {
 		err = errors.New("User does not exist")
 		return nil, err
 	}
-	
-
-	//Depad
-	struct_len := len(existing_user) - len(padded_struct)
-	eu_cyphertext := existing_user[struct_len:]
-	eu_plaintext := userlib.SymDec(k_user_encrypt, eu_cyphertext)
-	depadded_user := Depad(eu_plaintext)
-	if bytesEqual(depadded_user, user_struct) {
+	if userlib.HMACEqual(hmac_cpt, existing_user) {
 		err = errors.New("Invalid user credentials")
 		return nil, err
 	}
-	json.Unmarshal(depadded_user, userdataptr)
 
-	return userdataptr, nil
 }
 
 // This stores a file in the datastore.
