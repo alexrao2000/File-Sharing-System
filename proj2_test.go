@@ -42,7 +42,7 @@ func TestInit(t *testing.T) {
 	u, err = GetUser("alice", "fubar")
 	if err != nil {
 		// t.Error says the test fails
-		t.Error("Failed to retrieve user", err)
+		t.Error(err)
 		return
 	}
 	t.Log("Got user", u)
