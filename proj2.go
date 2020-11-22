@@ -347,7 +347,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	if len(user_struct) < 16 {
 		user_struct = Pad(user_struct, len(user_struct), 16)
 	}
-	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len]) 
+	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len])
 	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
 	if err != nil {
 		return nil, err
@@ -483,7 +483,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	if remainder_data_size != 0 {
 		copy(last_volume, packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
 	}
-	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE)
+	PadInt(last_volume[:], remainder_data_size, VOLUME_SIZE)
 	volumes[n_volumes - 1] = last_volume
 
 	// Encryption & authentication
@@ -540,6 +540,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
 
 	// Store data TODO
+
 
 	userlib.DatastoreSet(UUID, packaged_data)
 	//End of toy implementation
