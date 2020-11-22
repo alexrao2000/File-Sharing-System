@@ -367,7 +367,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	// Parameter
 	const VOLUME_SIZE = 1073741824 // 2^30 bytes
 	const k_password_len uint32 = 16
-	const ENCRYPTED_VOLUME_SIZE = 1073741824 /*VolumeSize*/ + 16 /*userlib.AESBlockSize*/
+	const ENCRYPTED_VOLUME_SIZE = 1073741824 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
 	userlib.DebugMsg("AES block size is %v", userlib.AESBlockSize)
 	userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
 	// Encoding
@@ -380,7 +380,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	data_size := len(packaged_data) // bytes
 	n_volumes := data_size / VOLUME_SIZE + 1
 	var volumes [n_volumes][VOLUME_SIZE]byte
-	var volumes_encrypted [n_volumes]Volume
+	volumes_encrypted := make([]Volume, n_volumes)
 	var index_starting int
 	for i := 0; i <= n_volumes - 2; i++ {
 		index_starting := i * VOLUME_SIZE
