@@ -133,6 +133,19 @@ func Depad(slice []byte) []byte {
 	return slice[:last_val]
 }
 
+//Returns true if two byte slices are equal, false otherwise
+func bytesEqual(a, b []byte) bool {
+    if len(a) != len(b) {
+        return false
+    }
+    for i, v := range a {
+        if v != b[i] {
+            return false
+        }
+    }
+    return true
+}
+
 // This creates a user.  It will only be called once for a user
 // (unless the keystore and datastore are cleared during testing purposes)
 
@@ -313,30 +326,28 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	}
 
 	// Encryption
-	iv := userlib.RandomBytes(userlib.AESBlockSize)
 
 	// Padding
 	pad_len := (len(user_struct) / 16 + 1) * 16
 	padded_struct := Pad(user_struct, len(user_struct), pad_len)
 
-	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, padded_struct)
-	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
-	if err != nil {
-		return nil, err
-	}
-	hmac_cpt := append(hmac_cyphertext, cyphertext_user...)
 	existing_user, ok := userlib.DatastoreGet(ID_user)
 	if ok != true {
 		err = errors.New("User does not exist")
 		return nil, err
 	}
-	if userlib.HMACEqual(hmac_cpt, existing_user) {
+	
+
+	//Depad
+	struct_len := len(existing_user) - len(padded_struct)
+	eu_cyphertext := existing_user[struct_len:]
+	eu_plaintext := userlib.SymDec(k_user_encrypt, eu_cyphertext)
+	depadded_user := Depad(eu_plaintext)
+	if bytesEqual(depadded_user, user_struct) {
 		err = errors.New("Invalid user credentials")
 		return nil, err
 	}
-
-	//Depad
-	userdata = Depad(existing_user)
+	json.Unmarshal(depadded_user, userdataptr)
 
 	return userdataptr, nil
 }
