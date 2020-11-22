@@ -126,6 +126,13 @@ func Pad(slice []byte, present_length int, target_length int) []byte {
 	return slice
 }
 
+//Depad a padded byte array, ex. user_struct
+func Depad(slice []byte) []byte {
+	pad_len := int(slice[len(slice)-1])
+	last_val := len(slice) - (pad_len + 1)
+	return slice[:last_val]
+}
+
 // This creates a user.  It will only be called once for a user
 // (unless the keystore and datastore are cleared during testing purposes)
 
@@ -307,7 +314,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 
 	// Encryption
 	iv := userlib.RandomBytes(userlib.AESBlockSize)
-	
+
 	// Padding
 	pad_len := (len(user_struct) / 16 + 1) * 16
 	padded_struct := Pad(user_struct, len(user_struct), pad_len)
@@ -327,6 +334,9 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 		err = errors.New("Invalid user credentials")
 		return nil, err
 	}
+
+	//Depad
+	userdata = Depad(existing_user)
 
 	return userdataptr, nil
 }
