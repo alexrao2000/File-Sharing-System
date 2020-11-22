@@ -283,32 +283,32 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 func GetUser(username string, password string) (userdataptr *User, err error) {
 	const k_password_len uint32 = 16
 
-	var userdata User
-	userdataptr = &userdata
-
-	//Adding private keys
-	_, K_private, _ := userlib.PKEKeyGen()
-	//userlib.DebugMsg("Key is %v, %v", k_pub, K_private)
-
-	K_DS_private, _, _ := userlib.DSKeyGen()
-	//userlib.DebugMsg("Key is %v, %v", k_DS_pub, K_DS_private)
-
-	//store private keys
-	userdata.K_private = K_private
-	userdata.K_DS_private = K_DS_private
-	userdata.AES_key_storage_keys = make(map[string]uuid.UUID)
-
-	//store public keys
-	//k_pubkey, k_DSkey := StorageKeysPublicKey(username)
-	//userlib.KeystoreSet(k_pubkey, k_pub)
-	//userlib.KeystoreSet(k_DSkey, k_DS_pub)
-
-	//set username
-	userdata.Username = username
-
-	// Encoding
-	user_struct, _ := json.Marshal(userdataptr)
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
+	// var userdata User
+	// userdataptr = &userdata
+	//
+	// //Adding private keys
+	// _, K_private, _ := userlib.PKEKeyGen()
+	// //userlib.DebugMsg("Key is %v, %v", k_pub, K_private)
+	//
+	// K_DS_private, _, _ := userlib.DSKeyGen()
+	// //userlib.DebugMsg("Key is %v, %v", k_DS_pub, K_DS_private)
+	//
+	// //store private keys
+	// userdata.K_private = K_private
+	// userdata.K_DS_private = K_DS_private
+	// userdata.AES_key_storage_keys = make(map[string]uuid.UUID)
+	//
+	// //store public keys
+	// //k_pubkey, k_DSkey := StorageKeysPublicKey(username)
+	// //userlib.KeystoreSet(k_pubkey, k_pub)
+	// //userlib.KeystoreSet(k_DSkey, k_DS_pub)
+	//
+	// //set username
+	// userdata.Username = username
+	//
+	// // Encoding
+	// user_struct, _ := json.Marshal(userdataptr)
+	// //userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
 
 	salt_encrypt, _ := json.Marshal("user_encrypt")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
@@ -444,7 +444,8 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		userlib.DebugMsg("%v", errors.New(strings.ToTitle("Public key fetch failed")))
 		return nil, nil
 	}
-	// PKE & Publish key
+
+	// PKE & Publish AES key
 	k_file_front_padded := append(userlib.RandomBytes(k_password_len), k_file)
 	pke_k_file, err := PKEEnc(k_pub, k_file_front_padded)
 	if err != nil {
@@ -454,8 +455,15 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	ds_k_file := userlib.DSSign(userdata.K_DS_private, pke_k_file)
 	ID_k := uuid.New()
 	userdata.AES_key_storage_keys[filename] = ID_k
-	userdata.AES_key_indices[filename] = 0
-	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
+	// userdata.AES_key_indices[filename] = 0
+	var keychain Keychain
+	keychain.PKE_k_file = pke_k_file
+	keychain.DS_k_file = ds_k_file
+	keychains := make(map[string]Keychain)
+	keychains[username] = keychain
+	keychains_marshal, _ := json.Marshal(keychains)
+	userlib.DatastoreSet(k_ID, keychains_marshal)
+
 	// Store data
 	stored, _ := json.Marshal(volumes_encrypted)
 	ID_file := uuid.FromBytes(userlib.Hash([]byte(ID_k))[:16])
@@ -471,7 +479,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	// Find UUID of keys
 	ID_k = userdata.AES_key_storage_keys[filename]
-	index_k = userdata.AES_key_indices[filename]
+	// index_k = userdata.AES_key_indices[filename]
 	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
 	return
 }
