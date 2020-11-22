@@ -281,34 +281,31 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 // fail with an error if the user/password is invalid, or if the user
 // data was corrupted, or if the user can't be found.
 func GetUser(username string, password string) (userdataptr *User, err error) {
+	const HMAC_size uint32 = 64
 	const k_password_len uint32 = 16
 
-	// var userdata User
-	// userdataptr = &userdata
-	//
-	// //Adding private keys
-	// _, K_private, _ := userlib.PKEKeyGen()
-	// //userlib.DebugMsg("Key is %v, %v", k_pub, K_private)
-	//
-	// K_DS_private, _, _ := userlib.DSKeyGen()
-	// //userlib.DebugMsg("Key is %v, %v", k_DS_pub, K_DS_private)
-	//
-	// //store private keys
-	// userdata.K_private = K_private
-	// userdata.K_DS_private = K_DS_private
-	// userdata.AES_key_storage_keys = make(map[string]uuid.UUID)
-	//
-	// //store public keys
-	// //k_pubkey, k_DSkey := StorageKeysPublicKey(username)
-	// //userlib.KeystoreSet(k_pubkey, k_pub)
-	// //userlib.KeystoreSet(k_DSkey, k_DS_pub)
-	//
-	// //set username
-	// userdata.Username = username
-	//
-	// // Encoding
-	// user_struct, _ := json.Marshal(userdataptr)
-	// //userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
+	var userdata User
+	userdataptr = &userdata
+
+	/*
+	//Adding private keys
+	_, K_private, _ := userlib.PKEKeyGen()
+	//userlib.DebugMsg("Key is %v, %v", k_pub, K_private)
+	K_DS_private, _, _ := userlib.DSKeyGen()
+	//userlib.DebugMsg("Key is %v, %v", k_DS_pub, K_DS_private)
+	//store private keys
+	userdata.K_private = K_private
+	userdata.K_DS_private = K_DS_private
+	//store public keys
+	//k_pubkey, k_DSkey := StorageKeysPublicKey(username)
+	//userlib.KeystoreSet(k_pubkey, k_pub)
+	//userlib.KeystoreSet(k_DSkey, k_DS_pub)
+	//set username
+	userdata.Username = username
+	// Encoding
+	user_struct, _ := json.Marshal(userdataptr)
+	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
+	*/
 
 	salt_encrypt, _ := json.Marshal("user_encrypt")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
@@ -327,30 +324,38 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 
 	//HKDF
 	k_user_encrypt, err := userlib.HashKDF(k_password, salt_encrypt)
+	if err != nil {
+		return nil, err
+	}
 	k_user_encrypt = k_user_encrypt[:k_password_len]
-	if err != nil {
-		return nil, err
-	}
-	k_user_auth, err := userlib.HashKDF(k_password, salt_auth)
-	k_user_auth = k_user_auth[:k_password_len]
-	if err != nil {
-		return nil, err
-	}
-	k_user_storage, err := userlib.HashKDF(k_password, salt_storage)
-	k_user_storage = k_user_storage[:k_password_len]
-	if err != nil {
-		return nil, err
-	}
 
-	hmac_username, err := userlib.HashKDF(k_user_storage, byte_username)
-	hmac_username = hmac_username[:k_password_len]
+	k_user_auth, err := userlib.HashKDF(k_password, salt_auth)
 	if err != nil {
 		return nil, err
 	}
+	k_user_auth = k_user_auth[:k_password_len]
+
+	k_user_storage, err := userlib.HashKDF(k_password, salt_storage)
+	if err != nil {
+		return nil, err
+	}
+	k_user_storage = k_user_storage[:k_password_len]
+
+	//Calculate ID_sure
+	hmac_username, err := userlib.HashKDF(k_user_storage, byte_username)
+	if err != nil {
+		return nil, err
+	}
+	hmac_username = hmac_username[:k_password_len]
+
 	ID_user, err := uuid.FromBytes(hmac_username)
 	if err != nil {
 		return nil, err
 	}
+
+	//Padding
+	//pad_len := (len(user_struct) / 16 + 1) * 16
+	//padded_struct := Pad(user_struct, len(user_struct), pad_len)
 
 	existing_user, ok := userlib.DatastoreGet(ID_user)
 	if ok != true {
@@ -358,15 +363,21 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 		return nil, err
 	}
 
-	//Depad
-	struct_len := len(existing_user) - len(padded_struct)
-	eu_cyphertext := existing_user[struct_len:]
+	//Decryption
+	eu_cyphertext := existing_user[64:]
 	eu_plaintext := userlib.SymDec(k_user_encrypt, eu_cyphertext)
-	depadded_user := Depad(eu_plaintext)
-	if bytesEqual(depadded_user, user_struct) {
+	stored_hmac := existing_user[:64]
+	userlib.DebugMsg("size: %v, %v, %v", len(stored_hmac), len(eu_cyphertext), len(existing_user))
+	evaluated_hmac, err := userlib.HashKDF(k_user_auth, eu_cyphertext)
+	if err != nil {
+		return nil, err
+	}
+	if !userlib.HMACEqual(stored_hmac, evaluated_hmac) {
 		err = errors.New("Invalid user credentials")
 		return nil, err
 	}
+	depadded_user := Depad(eu_plaintext)
+	
 	json.Unmarshal(depadded_user, userdataptr)
 
 	return userdataptr, nil
