@@ -530,8 +530,4 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 // Removes target user's access.
 func (userdata *User) RevokeFile(filename string, target_username string) (err error) {
 	return
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> updated to recent GetUser
