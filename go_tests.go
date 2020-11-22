@@ -38,12 +38,15 @@ import (
 
 func main() {
     plaintext := []byte("This is a test")
-	plaintext = append(plaintext, 2, 2)
     fmt.Println("Length of plaintext", len(plaintext))
-    k := userlib.RandomBytes(16)
-    iv := userlib.RandomBytes(userlib.AESBlockSize)
-    fmt.Println("Length of ciphertext is %v", len(userlib.SymEnc(k, iv, plaintext)))
 
-	sign_key, verify_key, _ = userlib.DSKeyGen()
-	
+    // k := userlib.RandomBytes(16)
+    // iv := userlib.RandomBytes(userlib.AESBlockSize)
+    // fmt.Println("Length of ciphertext is %v", len(userlib.SymEnc(k, iv, plaintext)))
+
+	sign_key, _, _ := userlib.DSKeyGen()
+	signature, _ := userlib.DSSign(sign_key, plaintext)
+	signature_longer, _ := userlib.DSSign(sign_key, append(plaintext, 2, 2))
+	fmt.Println("Length of signature is %v", len(signature))
+	fmt.Println("Length of signature is %v", len(signature_longer))
 }

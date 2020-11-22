@@ -87,7 +87,7 @@ type User struct {
 	Username string
 	K_private userlib.PKEDecKey
 	K_DS_private userlib.DSSignKey
-	AES_key_storage_keys 
+	AES_key_storage_keys map[string]uuid.UUID
 
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
@@ -104,7 +104,7 @@ type Volume struct {
 // The structure definition for a set of a file AES key & its Digital Signature
 type Keychain struct {
 	PKE_k_file [32]byte
-	DS_k_file []byte
+	DS_k_file [256]byte
 }
 
 // HELPERS start here
@@ -357,7 +357,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 		err = errors.New("User does not exist")
 		return nil, err
 	}
-	
+
 	//Depad
 	struct_len := len(existing_user) - len(padded_struct)
 	eu_cyphertext := existing_user[struct_len:]
