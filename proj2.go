@@ -93,16 +93,6 @@ type User struct {
 	// be public (start with a capital letter)
 }
 
-<<<<<<< HEAD
-=======
-// The structure definition for an encrypted volume
-type Volume struct {
-	Ciphertext [1073741840]byte // 2^30B + 16B of IV
-}
-
-// HELPERS start here
-
->>>>>>> Vol struct
 // Return storage keys of public PKE & DS keys, K_PUBKEY & K_DSKEY as strings,
 // for user with USERNAME
 func StorageKeysPublicKey(username string) (string, string) {
@@ -136,34 +126,6 @@ func Pad(slice []byte, present_length int, target_length int) []byte {
 	return slice
 }
 
-<<<<<<< HEAD
-=======
-// Pad SLICE according to the PKCS #7 scheme,
-// i.e. padding with the number of elements to pad,
-// from PRESENT_LENGTH to TARGET_LENGTH.
-// Do nothing if TARGET_LENGTH is no longer than PRESENT_LENGTH
-// or the length of SLICE are.
-func Pad(slice []byte, present_length int, target_length int) []byte {
-	pad := target_length - present_length
-	if pad > 0 && len(slice) <= target_length {
-		pad_byte := byte(pad)
-		for j := present_length; j < target_length; j++ {
-			slice[j] = pad_byte
-		}
-	}
-	return slice
-}
-
-// This handles panics and should print the error
-func HandlePanics()  {
-	if recovery := recover(); recovery != nil {
-		userlib.DebugMsg("DO NOT PANIC:", recovery)
-	}
-}
-
-// HELPERS end here
-
->>>>>>> Vol struct
 // This creates a user.  It will only be called once for a user
 // (unless the keystore and datastore are cleared during testing purposes)
 
@@ -195,10 +157,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	//store private keys
 	userdata.K_private = K_private
 	userdata.K_DS_private = K_DS_private
-<<<<<<< HEAD
-=======
 	userdata.AES_key_storage_keys := make(map[string]uuid.UUID)
->>>>>>> formatting changes
 
 	//store public keys
 	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
@@ -257,23 +216,12 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	// Encryption
 
 	iv := userlib.RandomBytes(userlib.AESBlockSize)
-<<<<<<< HEAD
 
 	// Padding
 	pad_len := (len(user_struct) / 16 + 1) * 16
 	padded_struct := Pad(user_struct, len(user_struct), pad_len)
 
 	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, padded_struct)
-=======
-	if len(user_struct) < 16 {
-		user_struct = Pad(user_struct, len(user_struct), 16)
-	}
-<<<<<<< HEAD
-	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len]) 
->>>>>>> formatting changes
-=======
-	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len])
->>>>>>> Vol struct
 	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
 	if err != nil {
 		return nil, err
@@ -296,11 +244,6 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	//Adding private keys
 	_, K_private, _ := userlib.PKEKeyGen()
 	//userlib.DebugMsg("Key is %v, %v", k_pub, K_private)
-<<<<<<< HEAD
-
-	K_DS_private, _, _ := userlib.DSKeyGen()
-	//userlib.DebugMsg("Key is %v, %v", k_DS_pub, K_DS_private)
-=======
 
 	K_DS_private, _, _ := userlib.DSKeyGen()
 	//userlib.DebugMsg("Key is %v, %v", k_DS_pub, K_DS_private)
@@ -383,7 +326,6 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 		err = errors.New("Invalid user credentials")
 		return nil, err
 	}
->>>>>>> formatting changes
 
 	//store private keys
 	userdata.K_private = K_private
@@ -428,14 +370,9 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	if remainder_data_size != 0 {
 		copy(last_volume, packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
 	}
-<<<<<<< HEAD
 	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE)
 	volumes_encrypted[-1].N_pad = VOLUME_SIZE - VOLUME_SIZE
 	volumes[-1] = last_volume
-=======
-	PadInt(last_volume[:], remainder_data_size, VOLUME_SIZE)
-	volumes[n_volumes - 1] = last_volume
->>>>>>> Vol struct
 
 	// Encryption & authentication
 	k_file = userlib.RandomBytes(k_password_len)
@@ -488,19 +425,10 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	userdata.AES_key_indices[filename] = 0
 	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
 
-<<<<<<< HEAD
 	// Store data
 	stored, _ := json.Marshal(volumes_encrypted)
 	ID_file := uuid.FromBytes(userlib.Hash([]byte(ID_k))[:16])
 	userlib.DatastoreSet(ID_file, stored)
-=======
-	// Store data TODO
-
-
-	userlib.DatastoreSet(UUID, packaged_data)
-	//End of toy implementation
-
->>>>>>> Vol struct
 	return
 }
 
