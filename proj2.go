@@ -96,6 +96,8 @@ type User struct {
 // The structure definition for an encrypted volume
 type Volume struct {
 	Ciphertext [1073741840]byte // 2^30B + 16B of IV
+	MAC [32]byte
+	N_pad uint32 // number of pads
 }
 
 // HELPERS start here
@@ -471,11 +473,13 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	data_size := len(packaged_data) // bytes
 	var n_volumes int = data_size/VOLUME_SIZE + 1
 	var volumes [n_volumes][VOLUME_SIZE]byte
+	var volumes_encrypted [n_volumes]Volume
 	var index_starting int
 	for i := 0; i <= n_volumes - 2; i++ {
 		index_starting := i * VOLUME_SIZE
 		volumes[i] = packaged_data[index_starting
 			: index_starting+VOLUME_SIZE]
+		volumes_encrypted[i].N_pad = 0
 	}
 	// Check if last volume has remainder data
 	remainder_data_size := data_size % VOLUME_SIZE
@@ -483,15 +487,14 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	if remainder_data_size != 0 {
 		copy(last_volume, packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
 	}
-	PadInt(last_volume[:], remainder_data_size, VOLUME_SIZE)
-	volumes[n_volumes - 1] = last_volume
+	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE)
+	volumes_encrypted[-1].N_pad = VOLUME_SIZE - VOLUME_SIZE
+	volumes[-1] = last_volume
 
 	// Encryption & authentication
 	k_file = userlib.RandomBytes(k_password_len)
 	var iv [userlib.AESBlockSize]byte
 	var k_volume [k_password_len]byte
-	var volumes_encrypted [n_volumes][ENCRYPTED_VOLUME_SIZE]byte
-	var volumes_MAC [n_volumes][userlib.AESBlockSize]byte
 	salt_volume_encryption, err := hex.DecodeString("volume_encryption")
 	if err != nil {
 		userlib.DebugMsg("%v", err)
@@ -510,12 +513,12 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		k_volume = userlib.HashKDF(k_file,
 			salt_volume_encryption + index_string)[:k_password_len]
 		defer HandlePanics()
-		volumes_encrypted[index] = userlib.SymEnc(k_volume, iv, volumes[index])
+		volumes_encrypted[index].Ciphertext = userlib.SymEnc(k_volume, iv, volumes[index])
 
 		// Authentication
 		k_volume_MAC = userlib.HashKDF(k_file,
 			salt_volume_authentication + index_string)[:k_password_len]
-		volumes_MAC[index] = userlib.HMACEval(k_volume_MAC, volumes[index]
+		volumes_encrypted[index].MAC = userlib.HMACEval(k_volume_MAC, volumes[index])
 	}
 
 	// Fetch public keys
@@ -539,12 +542,10 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	userdata.AES_key_indices[filename] = 0
 	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
 
-	// Store data TODO
-
-
-	userlib.DatastoreSet(UUID, packaged_data)
-	//End of toy implementation
-
+	// Store data
+	stored, _ := json.Marshal(volumes_encrypted)
+	ID_file := uuid.FromBytes(userlib.Hash([]byte(ID_k))[:16])
+	userlib.DatastoreSet(ID_file, stored)
 	return
 }
 
