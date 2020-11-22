@@ -120,7 +120,7 @@ func Pad(slice []byte, present_length int, target_length int) []byte {
 	if pad > 0 && len(slice) <= target_length {
 		pad_byte := byte(pad)
 		for j := present_length; j < target_length; j++ {
-			slice[j] = pad_byte
+			slice = append(slice, pad_byte)
 		}
 	}
 	return slice
@@ -213,11 +213,14 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	}
 
 	// Encryption
+
 	iv := userlib.RandomBytes(userlib.AESBlockSize)
-	if len(user_struct) < 16 {
-		user_struct = Pad(user_struct, len(user_struct), 16)
-	}
-	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len]) 
+
+	// Padding
+	pad_len := (len(user_struct) / 16 + 1) * 16
+	padded_struct := Pad(user_struct, len(user_struct), pad_len)
+
+	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, padded_struct) 
 	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
 	if err != nil {
 		return nil, err
@@ -304,10 +307,12 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 
 	// Encryption
 	iv := userlib.RandomBytes(userlib.AESBlockSize)
-	if len(user_struct) < 16 {
-		user_struct = Pad(user_struct, len(user_struct), 16)
-	}
-	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len]) 
+	
+	// Padding
+	pad_len := (len(user_struct) / 16 + 1) * 16
+	padded_struct := Pad(user_struct, len(user_struct), pad_len)
+
+	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, padded_struct) 
 	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
 	if err != nil {
 		return nil, err
