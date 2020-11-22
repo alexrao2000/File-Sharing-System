@@ -264,31 +264,6 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	var userdata User
 	userdataptr = &userdata
 
-	/*
-	//Adding private keys
-	_, K_private, _ := userlib.PKEKeyGen()
-	//userlib.DebugMsg("Key is %v, %v", k_pub, K_private)
-
-	K_DS_private, _, _ := userlib.DSKeyGen()
-	//userlib.DebugMsg("Key is %v, %v", k_DS_pub, K_DS_private)
-
-	//store private keys
-	userdata.K_private = K_private
-	userdata.K_DS_private = K_DS_private
-
-	//store public keys
-	//k_pubkey, k_DSkey := StorageKeysPublicKey(username)
-	//userlib.KeystoreSet(k_pubkey, k_pub)
-	//userlib.KeystoreSet(k_DSkey, k_DS_pub)
-
-	//set username
-	userdata.Username = username
-
-	// Encoding
-	user_struct, _ := json.Marshal(userdataptr)
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
-	*/
-
 	salt_encrypt, _ := json.Marshal("user_encrypt")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
 	salt_auth, _ := json.Marshal("user_auth")
@@ -334,10 +309,6 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	if err != nil {
 		return nil, err
 	}
-
-	//Padding
-	//pad_len := (len(user_struct) / 16 + 1) * 16
-	//padded_struct := Pad(user_struct, len(user_struct), pad_len)
 
 	existing_user, ok := userlib.DatastoreGet(ID_user)
 	if ok != true {
