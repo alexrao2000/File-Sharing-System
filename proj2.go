@@ -501,6 +501,8 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 func (userdata *User) ShareFile(filename string, recipient string) (
 	magic_string string, err error) {
 
+	
+
 	return
 }
 
