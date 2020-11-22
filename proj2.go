@@ -351,12 +351,6 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 		return nil, err
 	}
 
-	// Encryption
-
-	// Padding
-	pad_len := (len(user_struct) / 16 + 1) * 16
-	padded_struct := Pad(user_struct, len(user_struct), pad_len)
-
 	existing_user, ok := userlib.DatastoreGet(ID_user)
 	if ok != true {
 		err = errors.New("User does not exist")
@@ -375,7 +369,6 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	json.Unmarshal(depadded_user, userdataptr)
 
 	return userdataptr, nil
-
 }
 
 // This stores a file in the datastore.
