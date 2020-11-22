@@ -93,6 +93,13 @@ type User struct {
 	// be public (start with a capital letter)
 }
 
+// The structure definition for an encrypted volume
+type Volume struct {
+	Ciphertext [1073741840]byte // 2^30B + 16B of IV
+}
+
+// HELPERS start here
+
 // Return storage keys of public PKE & DS keys, K_PUBKEY & K_DSKEY as strings,
 // for user with USERNAME
 func StorageKeysPublicKey(username string) (string, string) {
@@ -145,6 +152,15 @@ func bytesEqual(a, b []byte) bool {
     }
     return true
 }
+
+// This handles panics and should print the error
+func HandlePanics()  {
+	if recovery := recover(); recovery != nil {
+		userlib.DebugMsg("DO NOT PANIC:", recovery)
+	}
+}
+
+// HELPERS end here
 
 // This creates a user.  It will only be called once for a user
 // (unless the keystore and datastore are cleared during testing purposes)
@@ -331,7 +347,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	if len(user_struct) < 16 {
 		user_struct = Pad(user_struct, len(user_struct), 16)
 	}
-	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len]) 
+	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len])
 	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
 	if err != nil {
 		return nil, err
@@ -390,9 +406,8 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	if remainder_data_size != 0 {
 		copy(last_volume, packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
 	}
-	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE)
-	volumes_encrypted[-1].N_pad = VOLUME_SIZE - VOLUME_SIZE
-	volumes[-1] = last_volume
+	PadInt(last_volume[:], remainder_data_size, VOLUME_SIZE)
+	volumes[n_volumes - 1] = last_volume
 
 	// Encryption & authentication
 	k_file = userlib.RandomBytes(k_password_len)
@@ -446,9 +461,16 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
 
 	// Store data
-	stored, _ := json.Marshal(volumes_encrypted)
-	ID_file := uuid.FromBytes(userlib.Hash([]byte(ID_k))[:16])
-	userlib.DatastoreSet(ID_file, stored)
+	//stored, _ := json.Marshal(volumes_encrypted)
+	//ID_file := uuid.FromBytes(userlib.Hash([]byte(ID_k))[:16])
+	//userlib.DatastoreSet(ID_file, stored)
+
+	// Store data TODO
+
+
+	userlib.DatastoreSet(UUID, packaged_data)
+	//End of toy implementation
+
 	return
 }
 
