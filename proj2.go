@@ -391,7 +391,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	// Parameter
 	const VOLUME_SIZE = 1073741824 // 2^30 bytes
 	const k_password_len uint32 = 16
-	const ENCRYPTED_VOLUME_SIZE = VOLUME_SIZE + userlib.AESBlockSize
+	const ENCRYPTED_VOLUME_SIZE = 1073741824 /*VolumeSize*/ + 16 /*userlib.AESBlockSize*/
 	userlib.DebugMsg("AES block size is %v", userlib.AESBlockSize)
 	userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
 	// Encoding
@@ -408,8 +408,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	var index_starting int
 	for i := 0; i <= n_volumes - 2; i++ {
 		index_starting := i * VOLUME_SIZE
-		volumes[i] = packaged_data[index_starting
-			: index_starting+VOLUME_SIZE]
+		volumes[i] = packaged_data[index_starting : index_starting+VOLUME_SIZE]
 		volumes_encrypted[i].N_pad = 0
 	}
 	// Check if last volume has remainder data
@@ -428,12 +427,12 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	salt_volume_encryption, err := hex.DecodeString("volume_encryption")
 	if err != nil {
 		userlib.DebugMsg("%v", err)
-		return nil, nil
+		return
 	}
 	salt_volume_authentication, err := hex.DecodeString("volume_authentication")
 	if err != nil {
 		userlib.DebugMsg("%v", err)
-		return nil, nil
+		return
 	}
 	for index, volume := range volumes {
 		index_string = strconv.Itoa(index)
@@ -453,7 +452,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	k_pub, ok := userlib.KeystoreGet(k_pubkey)
 	if !ok {
 		userlib.DebugMsg("%v", errors.New(strings.ToTitle("Public key fetch failed")))
-		return nil, nil
+		return
 	}
 
 	// PKE & Publish AES key
@@ -461,7 +460,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	pke_k_file, err := PKEEnc(k_pub, k_file_front_padded)
 	if err != nil {
 		userlib.DebugMsg("%v", err)
-		return nil, nil
+		return
 	}
 	ds_k_file := userlib.DSSign(userdata.K_DS_private, pke_k_file)
 	ID_k := uuid.New()
