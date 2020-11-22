@@ -406,8 +406,9 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	if remainder_data_size != 0 {
 		copy(last_volume, packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
 	}
-	PadInt(last_volume[:], remainder_data_size, VOLUME_SIZE)
-	volumes[n_volumes - 1] = last_volume
+	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE)
+	volumes_encrypted[-1].N_pad = VOLUME_SIZE - VOLUME_SIZE
+	volumes[-1] = last_volume
 
 	// Encryption & authentication
 	k_file = userlib.RandomBytes(k_password_len)
@@ -461,16 +462,9 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
 
 	// Store data
-	//stored, _ := json.Marshal(volumes_encrypted)
-	//ID_file := uuid.FromBytes(userlib.Hash([]byte(ID_k))[:16])
-	//userlib.DatastoreSet(ID_file, stored)
-
-	// Store data TODO
-
-
-	userlib.DatastoreSet(UUID, packaged_data)
-	//End of toy implementation
-
+	stored, _ := json.Marshal(volumes_encrypted)
+	ID_file := uuid.FromBytes(userlib.Hash([]byte(ID_k))[:16])
+	userlib.DatastoreSet(ID_file, stored)
 	return
 }
 
