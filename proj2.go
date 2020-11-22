@@ -100,6 +100,12 @@ type Volume struct {
 	N_pad uint32 // number of pads
 }
 
+// The structure definition for a set of a file AES key & its Digital Signature
+type Keychain struct {
+	PKE_k_file [32]byte
+	DS_k_file []byte
+}
+
 // HELPERS start here
 
 // Return storage keys of public PKE & DS keys, K_PUBKEY & K_DSKEY as strings,
@@ -166,7 +172,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	//store private keys
 	userdata.K_private = K_private
 	userdata.K_DS_private = K_DS_private
-	userdata.AES_key_storage_keys := make(map[string]uuid.UUID)
+	userdata.AES_key_storage_keys = make(map[string]uuid.UUID)
 
 	//store public keys
 	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
@@ -526,6 +532,10 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 // existing file, but only whatever additional information and
 // metadata you need.
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
+	// Find UUID of keys
+	ID_k = userdata.AES_key_storage_keys[filename]
+	index_k = userdata.AES_key_indices[filename]
+	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
 	return
 }
 
