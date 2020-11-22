@@ -118,7 +118,7 @@ func StorageKeysPublicKey(username string) (string, string) {
 func Pad(slice []byte, present_length int, target_length int) []byte {
 	pad := target_length - present_length
 	if pad > 0 && len(slice) <= target_length {
-		pad_byte := byte(pad)
+		pad_byte := byte(pad % 256)
 		for j := present_length; j < target_length; j++ {
 			slice = append(slice, pad_byte)
 		}
@@ -227,7 +227,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	pad_len := (len(user_struct) / 16 + 1) * 16
 	padded_struct := Pad(user_struct, len(user_struct), pad_len)
 
-	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, padded_struct) 
+	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, padded_struct)
 	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
 	if err != nil {
 		return nil, err
@@ -319,7 +319,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	pad_len := (len(user_struct) / 16 + 1) * 16
 	padded_struct := Pad(user_struct, len(user_struct), pad_len)
 
-	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, padded_struct) 
+	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, padded_struct)
 	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
 	if err != nil {
 		return nil, err
