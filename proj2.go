@@ -31,7 +31,7 @@ import (
 
 	// Optional. You can remove the "_" there, but please do not touch
 	// anything else within the import bracket.
-	_ "strconv"
+	"strconv"
 
 	// if you are looking for fmt, we don't give you fmt, but you can use userlib.DebugMsg.
 	// see someUsefulThings() below:
@@ -96,15 +96,15 @@ type User struct {
 
 // The structure definition for an encrypted volume
 type Volume struct {
-	Ciphertext [1073741840]byte // 2^30B + 16B of IV
-	MAC [32]byte
+	Ciphertext []byte // 2^30B + 16B of IV
+	MAC []byte
 	N_pad uint32 // number of pads
 }
 
 // The structure definition for a set of a file AES key & its Digital Signature
 type Keychain struct {
-	PKE_k_file [32]byte
-	DS_k_file [256]byte
+	PKE_k_file []byte
+	DS_k_file []byte
 }
 
 // HELPERS start here
@@ -353,7 +353,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 		return nil, err
 	}
 	depadded_user := Depad(eu_plaintext)
-	
+
 	json.Unmarshal(depadded_user, userdataptr)
 
 	return userdataptr, nil
@@ -379,7 +379,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	// }
 	data_size := len(packaged_data) // bytes
 	n_volumes := data_size / VOLUME_SIZE + 1
-	var volumes [n_volumes][VOLUME_SIZE]byte
+	volumes := make([][]byte, n_volumes)
 	volumes_encrypted := make([]Volume, n_volumes)
 	var index_starting int
 	for i := 0; i <= n_volumes - 2; i++ {
@@ -389,42 +389,56 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	}
 	// Check if last volume has remainder data
 	remainder_data_size := data_size % VOLUME_SIZE
-	var last_volume [VOLUME_SIZE]byte
+	var last_volume []byte
 	if remainder_data_size != 0 {
-		copy(last_volume, packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
+		copy(last_volume[:], packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
 	}
 	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE)
-	volumes_encrypted[-1].N_pad = VOLUME_SIZE - VOLUME_SIZE
-	volumes[-1] = last_volume
+	volumes_encrypted[n_volumes - 1].N_pad = VOLUME_SIZE - VOLUME_SIZE
+	volumes[n_volumes - 1] = last_volume
 	// Encryption & authentication
-	k_file = userlib.RandomBytes(k_password_len)
-	var iv [userlib.AESBlockSize]byte
-	var k_volume [k_password_len]byte
-	salt_volume_encryption, err := hex.DecodeString("volume_encryption")
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return
-	}
-	salt_volume_authentication, err := hex.DecodeString("volume_authentication")
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return
-	}
+	k_file := userlib.RandomBytes(int(k_password_len))
+	iv := make([]byte, userlib.AESBlockSize)
+	// var k_volume [k_password_len]byte
 	for index, volume := range volumes {
-		index_string = strconv.Itoa(index)
+		index_string := strconv.Itoa(index)
 		// Encrypt
 		iv = userlib.RandomBytes(userlib.AESBlockSize)
-		k_volume = userlib.HashKDF(k_file,
-			salt_volume_encryption + index_string)[:k_password_len]
+		salt_volume_encryption, err := hex.DecodeString("volume_encryption" + index_string)
+		if err != nil {
+			userlib.DebugMsg("%v", err)
+			return
+		}
+		salt_volume_authentication, err := hex.DecodeString("volume_authentication" + index_string)
+		if err != nil {
+			userlib.DebugMsg("%v", err)
+			return
+		}
+		k_volume, err := userlib.HashKDF(k_file,
+			salt_volume_encryption)
+		if err != nil {
+			userlib.DebugMsg("%v", err)
+			return
+		}
+		k_volume = k_volume[:k_password_len]
 		defer HandlePanics()
 		volumes_encrypted[index].Ciphertext = userlib.SymEnc(k_volume, iv, volumes[index])
 		// Authentication
-		k_volume_MAC = userlib.HashKDF(k_file,
-			salt_volume_authentication + index_string)[:k_password_len]
-		volumes_encrypted[index].MAC = userlib.HMACEval(k_volume_MAC, volumes[index])
+		k_volume_MAC, err := userlib.HashKDF(k_file,
+			salt_volume_authentication)
+		if err != nil {
+			userlib.DebugMsg("%v", err)
+			return
+		}
+		k_volume_MAC = k_volume_MAC[:k_password_len]
+		volumes_encrypted[index].MAC, err = userlib.HMACEval(k_volume_MAC, volumes[index])
+		if err != nil {
+			userlib.DebugMsg("%v", err)
+			return
+		}
 	}
 	// Fetch public keys
-	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
+	k_pubkey, k_DSkey := StorageKeysPublicKey(userdata.Username)
 	k_pub, ok := userlib.KeystoreGet(k_pubkey)
 	if !ok {
 		userlib.DebugMsg("%v", errors.New(strings.ToTitle("Public key fetch failed")))
@@ -432,13 +446,17 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	}
 
 	// PKE & Publish AES key
-	k_file_front_padded := append(userlib.RandomBytes(k_password_len), k_file)
-	pke_k_file, err := PKEEnc(k_pub, k_file_front_padded)
+	k_file_front_padded := append(userlib.RandomBytes(int(k_password_len)), k_file[:])
+	pke_k_file, err := userlib.PKEEnc(k_pub, k_file_front_padded)
 	if err != nil {
 		userlib.DebugMsg("%v", err)
 		return
 	}
-	ds_k_file := userlib.DSSign(userdata.K_DS_private, pke_k_file)
+	ds_k_file, err := userlib.DSSign(userdata.K_DS_private, pke_k_file)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return
+	}
 	ID_k := uuid.New()
 	userdata.AES_key_storage_keys[filename] = ID_k
 	// userdata.AES_key_indices[filename] = 0
@@ -446,13 +464,13 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	keychain.PKE_k_file = pke_k_file
 	keychain.DS_k_file = ds_k_file
 	keychains := make(map[string]Keychain)
-	keychains[username] = keychain
+	keychains[userdata.Username] = keychain
 	keychains_marshal, _ := json.Marshal(keychains)
-	userlib.DatastoreSet(k_ID, keychains_marshal)
+	userlib.DatastoreSet(ID_k, keychains_marshal)
 
 	// Store data
 	stored, _ := json.Marshal(volumes_encrypted)
-	ID_file := uuid.FromBytes(userlib.Hash([]byte(ID_k))[:16])
+	ID_file := uuid.FromBytes(userlib.Hash([]byte(ID_k.String))[:16])
 	userlib.DatastoreSet(ID_file, stored)
 	return
 }
@@ -464,7 +482,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 // metadata you need.
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	// Find UUID of keys
-	ID_k = userdata.AES_key_storage_keys[filename]
+	ID_k := userdata.AES_key_storage_keys[filename]
 	// index_k = userdata.AES_key_indices[filename]
 	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
 	return
