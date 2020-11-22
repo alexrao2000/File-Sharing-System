@@ -87,6 +87,7 @@ type User struct {
 	Username string
 	K_private userlib.PKEDecKey
 	K_DS_private userlib.DSSignKey
+	AES_key_storage_keys 
 
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
@@ -295,7 +296,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	//store private keys
 	userdata.K_private = K_private
 	userdata.K_DS_private = K_DS_private
-	userdata.AES_key_storage_keys := make(map[string]uuid.UUID)
+	userdata.AES_key_storage_keys = make(map[string]uuid.UUID)
 
 	//store public keys
 	//k_pubkey, k_DSkey := StorageKeysPublicKey(username)
@@ -380,13 +381,10 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	const VOLUME_SIZE = 1073741824 // 2^30 bytes
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = VOLUME_SIZE + userlib.AESBlockSize
-
 	userlib.DebugMsg("AES block size is %v", userlib.AESBlockSize)
 	userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
-
 	// Encoding
 	packaged_data, _ := json.Marshal(data)
-
 	// Splitting
 	// data_string, err := hex.DecodeString(packaged_data)
 	// if err != nil {
@@ -412,7 +410,6 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE)
 	volumes_encrypted[-1].N_pad = VOLUME_SIZE - VOLUME_SIZE
 	volumes[-1] = last_volume
-
 	// Encryption & authentication
 	k_file = userlib.RandomBytes(k_password_len)
 	var iv [userlib.AESBlockSize]byte
@@ -429,20 +426,17 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	}
 	for index, volume := range volumes {
 		index_string = strconv.Itoa(index)
-
 		// Encrypt
 		iv = userlib.RandomBytes(userlib.AESBlockSize)
 		k_volume = userlib.HashKDF(k_file,
 			salt_volume_encryption + index_string)[:k_password_len]
 		defer HandlePanics()
 		volumes_encrypted[index].Ciphertext = userlib.SymEnc(k_volume, iv, volumes[index])
-
 		// Authentication
 		k_volume_MAC = userlib.HashKDF(k_file,
 			salt_volume_authentication + index_string)[:k_password_len]
 		volumes_encrypted[index].MAC = userlib.HMACEval(k_volume_MAC, volumes[index])
 	}
-
 	// Fetch public keys
 	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
 	k_pub, ok := userlib.KeystoreGet(k_pubkey)
@@ -450,7 +444,6 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		userlib.DebugMsg("%v", errors.New(strings.ToTitle("Public key fetch failed")))
 		return nil, nil
 	}
-
 	// PKE & Publish key
 	k_file_front_padded := append(userlib.RandomBytes(k_password_len), k_file)
 	pke_k_file, err := PKEEnc(k_pub, k_file_front_padded)
@@ -463,7 +456,6 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	userdata.AES_key_storage_keys[filename] = ID_k
 	userdata.AES_key_indices[filename] = 0
 	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
-
 	// Store data
 	stored, _ := json.Marshal(volumes_encrypted)
 	ID_file := uuid.FromBytes(userlib.Hash([]byte(ID_k))[:16])
