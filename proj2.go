@@ -94,6 +94,11 @@ type User struct {
 	// be public (start with a capital letter)
 }
 
+// The structure definition for an encrypted volume
+type Volume struct {
+	Ciphertext [1073741840]byte // 2^30B + 16B of IV
+}
+
 // HELPERS start here
 
 // Return storage keys of public PKE & DS keys, K_PUBKEY & K_DSKEY as strings,
@@ -116,6 +121,22 @@ func StorageKeysPublicKey(username string) (string, string) {
 
 // Pad SLICE according to the PKCS #7 scheme,
 // i.e. padding with the number (as a byte) of elements to pad,
+// from PRESENT_LENGTH to TARGET_LENGTH.
+// Do nothing if TARGET_LENGTH is no longer than PRESENT_LENGTH
+// or the length of SLICE are.
+func Pad(slice []byte, present_length int, target_length int) []byte {
+	pad := target_length - present_length
+	if pad > 0 && len(slice) <= target_length {
+		pad_byte := byte(pad)
+		for j := present_length; j < target_length; j++ {
+			slice[j] = pad_byte
+		}
+	}
+	return slice
+}
+
+// Pad SLICE according to the PKCS #7 scheme,
+// i.e. padding with the number of elements to pad,
 // from PRESENT_LENGTH to TARGET_LENGTH.
 // Do nothing if TARGET_LENGTH is no longer than PRESENT_LENGTH
 // or the length of SLICE are.
@@ -231,7 +252,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	if len(user_struct) < 16 {
 		user_struct = Pad(user_struct, len(user_struct), 16)
 	}
-	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len]) 
+	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len])
 	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
 	if err != nil {
 		return nil, err
@@ -321,7 +342,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	if len(user_struct) < 16 {
 		user_struct = Pad(user_struct, len(user_struct), 16)
 	}
-	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len]) 
+	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, user_struct[:k_password_len])
 	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
 	if err != nil {
 		return nil, err
@@ -346,7 +367,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 // should NOT be revealed to the datastore!
 func (userdata *User) StoreFile(filename string, data []byte) {
 	// Parameter
-	const VOLUME_SIZE int = 1073741824 // 2^30 bytes
+	const VOLUME_SIZE = 1073741824 // 2^30 bytes
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = VOLUME_SIZE + userlib.AESBlockSize
 
@@ -378,7 +399,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	if remainder_data_size != 0 {
 		copy(last_volume, packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
 	}
-	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE)
+	PadInt(last_volume[:], remainder_data_size, VOLUME_SIZE)
 	volumes[n_volumes - 1] = last_volume
 
 	// Encryption & authentication
@@ -435,6 +456,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
 
 	// Store data TODO
+
 
 	userlib.DatastoreSet(UUID, packaged_data)
 	//End of toy implementation
