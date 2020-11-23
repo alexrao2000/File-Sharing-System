@@ -133,6 +133,7 @@ func Depad(slice []byte) []byte {
 	return slice[:last_val]
 }
 
+/*
 //Returns true if two byte slices are equal, false otherwise
 func bytesEqual(a, b []byte) bool {
     if len(a) != len(b) {
@@ -145,6 +146,7 @@ func bytesEqual(a, b []byte) bool {
     }
     return true
 }
+*/
 
 // This creates a user.  It will only be called once for a user
 // (unless the keystore and datastore are cleared during testing purposes)
