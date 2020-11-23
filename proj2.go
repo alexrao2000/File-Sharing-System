@@ -196,7 +196,6 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	//store private keys
 	userdata.K_private = K_private
 	userdata.K_DS_private = K_DS_private
-	userdata.AES_key_storage_keys = make(map[string]uuid.UUID)
 
 	//store public keys
 	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
@@ -227,20 +226,22 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 
 	//HKDF
 	k_user_encrypt, err := userlib.HashKDF(k_password, salt_encrypt)
+	if err != nil {
+		return nil, err
+	}
 	k_user_encrypt = k_user_encrypt[:k_password_len]
-	if err != nil {
-		return nil, err
-	}
+
 	k_user_auth, err := userlib.HashKDF(k_password, salt_auth)
+	if err != nil {
+		return nil, err
+	}
 	k_user_auth = k_user_auth[:k_password_len]
-	if err != nil {
-		return nil, err
-	}
+
 	k_user_storage, err := userlib.HashKDF(k_password, salt_storage)
-	k_user_storage = k_user_storage[:k_password_len]
 	if err != nil {
 		return nil, err
 	}
+	k_user_storage = k_user_storage[:k_password_len]
 
 	hmac_username, err := userlib.HashKDF(k_user_storage, byte_username)
 	hmac_username = hmac_username[:k_password_len]
@@ -266,6 +267,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 		return nil, err
 	}
 	hmac_cpt := append(hmac_cyphertext, cyphertext_user...)
+	userlib.DebugMsg("size: %v, %v, %v", len(hmac_cyphertext), len(cyphertext_user), len(hmac_cpt))
 	userlib.DatastoreSet(ID_user, hmac_cpt)
 
 	return userdataptr, nil
