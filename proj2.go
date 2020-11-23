@@ -113,6 +113,70 @@ func StorageKeysPublicKey(username string) (string, string) {
 	return k_pubkey.String(), k_DSkey.String()
 }
 
+func StoreUser(userdataptr *User, k_password []byte) (err error) {
+	const k_password_len uint32 = 16
+	// Encoding
+	user_struct, _ := json.Marshal(userdataptr)
+	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
+
+	// Encode salt
+	salt_encrypt := []byte("user_encrypt")
+	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
+	salt_auth := []byte("user_auth")
+	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
+	salt_storage := []byte("user_storage")
+	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
+
+	//HKDF
+	k_user_encrypt, err := userlib.HashKDF(k_password, salt_encrypt)
+	if err != nil {
+		return err
+	}
+	k_user_encrypt = k_user_encrypt[:k_password_len]
+
+	k_user_auth, err := userlib.HashKDF(k_password, salt_auth)
+	if err != nil {
+		return err
+	}
+	k_user_auth = k_user_auth[:k_password_len]
+
+	k_user_storage, err := userlib.HashKDF(k_password, salt_storage)
+	if err != nil {
+		return err
+	}
+	k_user_storage = k_user_storage[:k_password_len]
+
+	byte_username := []byte(userdataptr.Username)
+	hmac_username, err := userlib.HashKDF(k_user_storage, byte_username)
+	hmac_username = hmac_username[:k_password_len]
+	if err != nil {
+		return err
+	}
+	ID_user, err := uuid.FromBytes(hmac_username)
+	if err != nil {
+		return err
+	}
+
+	// Encryption
+
+	iv := userlib.RandomBytes(userlib.AESBlockSize)
+
+	// Padding
+	pad_len := (len(user_struct) / 16 + 1) * 16
+	padded_struct := Pad(user_struct, len(user_struct), pad_len)
+
+	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, padded_struct)
+	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
+	if err != nil {
+		return err
+	}
+	hmac_cpt := append(hmac_cyphertext, cyphertext_user...)
+	userlib.DebugMsg("size: %v, %v, %v", len(hmac_cyphertext), len(cyphertext_user), len(hmac_cpt))
+	userlib.DatastoreSet(ID_user, hmac_cpt)
+
+	return nil
+}
+
 // Pad SLICE according to the PKCS #7 scheme,
 // i.e. padding with the number (as a byte) of elements to pad,
 // from PRESENT_LENGTH to TARGET_LENGTH
@@ -196,63 +260,11 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	userlib.KeystoreSet(k_pubkey, k_pub)
 	userlib.KeystoreSet(k_DSkey, k_DS_pub)
 
-	// Encoding
-	user_struct, _ := json.Marshal(userdataptr)
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
-
-	// Encode salt
-	salt_encrypt := []byte("user_encrypt")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
-	salt_auth := []byte("user_auth")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
-	salt_storage := []byte("user_storage")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
-
-	//HKDF
-	k_user_encrypt, err := userlib.HashKDF(k_password, salt_encrypt)
+	// Store User struct
+	err = StoreUser(userdataptr, k_password)
 	if err != nil {
-		return nil, err
+		userlib.DebugMsg("Error: %v", err)
 	}
-	k_user_encrypt = k_user_encrypt[:k_password_len]
-
-	k_user_auth, err := userlib.HashKDF(k_password, salt_auth)
-	if err != nil {
-		return nil, err
-	}
-	k_user_auth = k_user_auth[:k_password_len]
-
-	k_user_storage, err := userlib.HashKDF(k_password, salt_storage)
-	if err != nil {
-		return nil, err
-	}
-	k_user_storage = k_user_storage[:k_password_len]
-
-	hmac_username, err := userlib.HashKDF(k_user_storage, byte_username)
-	hmac_username = hmac_username[:k_password_len]
-	if err != nil {
-		return nil, err
-	}
-	ID_user, err := uuid.FromBytes(hmac_username)
-	if err != nil {
-		return nil, err
-	}
-
-	// Encryption
-
-	iv := userlib.RandomBytes(userlib.AESBlockSize)
-
-	// Padding
-	pad_len := (len(user_struct) / 16 + 1) * 16
-	padded_struct := Pad(user_struct, len(user_struct), pad_len)
-
-	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, padded_struct)
-	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
-	if err != nil {
-		return nil, err
-	}
-	hmac_cpt := append(hmac_cyphertext, cyphertext_user...)
-	userlib.DebugMsg("size: %v, %v, %v", len(hmac_cyphertext), len(cyphertext_user), len(hmac_cpt))
-	userlib.DatastoreSet(ID_user, hmac_cpt)
 
 	return userdataptr, nil
 }
