@@ -112,14 +112,8 @@ type Keychain struct {
 // Return storage keys of public PKE & DS keys, K_PUBKEY & K_DSKEY as strings,
 // for user with USERNAME
 func StorageKeysPublicKey(username string) (string, string) {
-	byte_pub, err := hex.DecodeString(username + "public_key")
-	if err != nil {
-		return "", ""
-	}
-	byte_DS, err := hex.DecodeString(username + "DS_key")
-	if err != nil {
-		return "", ""
-	}
+	byte_pub := []byte(username + "public_key")
+	byte_DS := []byte(username + "DS_key")
 	hash_pub := userlib.Hash(byte_pub)
 	hash_DS := userlib.Hash(byte_DS)
 	k_pubkey, _ := uuid.FromBytes(hash_pub[:16])
@@ -368,20 +362,16 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	const VOLUME_SIZE = 1073741824 // 2^30 bytes
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = 1073741824 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
-	userlib.DebugMsg("AES block size is %v", userlib.AESBlockSize)
-	userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
+	// userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
+
 	// Encoding
 	packaged_data, _ := json.Marshal(data)
+
 	// Splitting
-	// data_string, err := hex.DecodeString(packaged_data)
-	// if err != nil {
-	// 	return nil, err
-	// }
 	data_size := len(packaged_data) // bytes
 	n_volumes := data_size / VOLUME_SIZE + 1
 	volumes := make([][]byte, n_volumes)
 	volumes_encrypted := make([]Volume, n_volumes)
-	var index_starting int
 	for i := 0; i <= n_volumes - 2; i++ {
 		index_starting := i * VOLUME_SIZE
 		volumes[i] = packaged_data[index_starting : index_starting+VOLUME_SIZE]
@@ -404,16 +394,8 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		index_string := strconv.Itoa(index)
 		// Encrypt
 		iv = userlib.RandomBytes(userlib.AESBlockSize)
-		salt_volume_encryption, err := hex.DecodeString("volume_encryption" + index_string)
-		if err != nil {
-			userlib.DebugMsg("%v", err)
-			return
-		}
-		salt_volume_authentication, err := hex.DecodeString("volume_authentication" + index_string)
-		if err != nil {
-			userlib.DebugMsg("%v", err)
-			return
-		}
+		salt_volume_encryption := []byte("volume_encryption" + index_string)
+		salt_volume_authentication := []byte("volume_authentication" + index_string)
 		k_volume, err := userlib.HashKDF(k_file,
 			salt_volume_encryption)
 		if err != nil {
@@ -422,7 +404,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		}
 		k_volume = k_volume[:k_password_len]
 		defer HandlePanics()
-		volumes_encrypted[index].Ciphertext = userlib.SymEnc(k_volume, iv, volumes[index])
+		volumes_encrypted[index].Ciphertext = userlib.SymEnc(k_volume, iv, volume)
 		// Authentication
 		k_volume_MAC, err := userlib.HashKDF(k_file,
 			salt_volume_authentication)
@@ -431,14 +413,14 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 			return
 		}
 		k_volume_MAC = k_volume_MAC[:k_password_len]
-		volumes_encrypted[index].MAC, err = userlib.HMACEval(k_volume_MAC, volumes[index])
+		volumes_encrypted[index].MAC, err = userlib.HMACEval(k_volume_MAC, volumes_encrypted[index].Ciphertext)
 		if err != nil {
 			userlib.DebugMsg("%v", err)
 			return
 		}
 	}
 	// Fetch public keys
-	k_pubkey, k_DSkey := StorageKeysPublicKey(userdata.Username)
+	k_pubkey, _ := StorageKeysPublicKey(userdata.Username)
 	k_pub, ok := userlib.KeystoreGet(k_pubkey)
 	if !ok {
 		userlib.DebugMsg("%v", errors.New(strings.ToTitle("Public key fetch failed")))
@@ -446,7 +428,9 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	}
 
 	// PKE & Publish AES key
-	k_file_front_padded := append(userlib.RandomBytes(int(k_password_len)), k_file[:])
+	k_file_front_padded := make([]byte, k_password_len * 2)
+	copy(k_file_front_padded[:k_password_len], userlib.RandomBytes(int(k_password_len)))
+	copy(k_file_front_padded[k_password_len:], k_file)
 	pke_k_file, err := userlib.PKEEnc(k_pub, k_file_front_padded)
 	if err != nil {
 		userlib.DebugMsg("%v", err)
@@ -470,7 +454,12 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 
 	// Store data
 	stored, _ := json.Marshal(volumes_encrypted)
-	ID_file := uuid.FromBytes(userlib.Hash([]byte(ID_k.String))[:16])
+	hash_ID_k := userlib.Hash([]byte(ID_k.String()))
+	ID_file, err := uuid.FromBytes(hash_ID_k[:16])
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return
+	}
 	userlib.DatastoreSet(ID_file, stored)
 	return
 }
@@ -482,9 +471,8 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 // metadata you need.
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	// Find UUID of keys
-	ID_k := userdata.AES_key_storage_keys[filename]
-	// index_k = userdata.AES_key_indices[filename]
-	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
+	// ID_k := userdata.AES_key_storage_keys[filename]
+	// userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
 	return
 }
 
