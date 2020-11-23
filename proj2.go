@@ -85,6 +85,7 @@ func bytesToUUID(data []byte) (ret uuid.UUID) {
 // The structure definition for a user record
 type User struct {
 	Username string
+	K_password []byte
 	K_private userlib.PKEDecKey
 	K_DS_private userlib.DSSignKey
 	AES_key_storage_keys map[string]uuid.UUID
@@ -175,11 +176,18 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	K_DS_private, k_DS_pub, _ := userlib.DSKeyGen()
 	//userlib.DebugMsg("Key is %v, %v", k_DS_pub, K_DS_private)
 
-	//set username
+	// Key generation
+	byte_username := []byte(username)
+	byte_password := []byte(password)
+
+	//userlib.DebugMsg("DEBUG: key gen %s\n", string(byte_username))
+
+	k_password := userlib.Argon2Key(byte_password, byte_username, k_password_len)
+
+	// Store user data
 	userdata.Username = username
 	userdata.AES_key_storage_keys = make(map[string]uuid.UUID)
-
-	//store private keys
+	userdata.K_password = k_password
 	userdata.K_private = K_private
 	userdata.K_DS_private = K_DS_private
 
@@ -192,20 +200,13 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	user_struct, _ := json.Marshal(userdataptr)
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
 
+	// Encode salt
 	salt_encrypt := []byte("user_encrypt")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
 	salt_auth := []byte("user_auth")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
 	salt_storage := []byte("user_storage")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
-
-	// Key generation
-	byte_username := []byte(username)
-	byte_password := []byte(password)
-
-	//userlib.DebugMsg("DEBUG: key gen %s\n", string(byte_username))
-
-	k_password := userlib.Argon2Key(byte_password, byte_username, k_password_len)
 
 	//HKDF
 	k_user_encrypt, err := userlib.HashKDF(k_password, salt_encrypt)
