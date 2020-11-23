@@ -192,11 +192,11 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	user_struct, _ := json.Marshal(userdataptr)
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
 
-	salt_encrypt, _ := json.Marshal("user_encrypt")
+	salt_encrypt := []byte("user_encrypt")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
-	salt_auth, _ := json.Marshal("user_auth")
+	salt_auth := []byte("user_auth")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
-	salt_storage, _ := json.Marshal("user_storage")
+	salt_storage := []byte("user_storage")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
 
 	// Key generation
@@ -266,11 +266,11 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	var userdata User
 	userdataptr = &userdata
 
-	salt_encrypt, _ := json.Marshal("user_encrypt")
+	salt_encrypt := []byte("user_encrypt")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
-	salt_auth, _ := json.Marshal("user_auth")
+	salt_auth := []byte("user_auth")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
-	salt_storage, _ := json.Marshal("user_storage")
+	salt_storage := []byte("user_storage")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
 
 	// Key generation
