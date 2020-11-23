@@ -518,8 +518,26 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 // should be able to know the sender.
 func (userdata *User) ShareFile(filename string, recipient string) (
 	magic_string string, err error) {
+	const k_password_len uint32 = 16
 
-	magic_string = ID_k
+	//Encrypt k_file
+	k_file := userlib.RandomBytes(int(k_password_len))
+
+	k_pubkey, k_DSkey := StorageKeysPublicKey(userdata.Username)
+	k_pub := userlib.KeystoreGet(k_pubkey)
+
+	iv := userlib.RandomBytes(userlib.AESBlockSize)
+	enc_k_file := userlib.SymEnc(k_pub, iv, k_file)
+
+	//Sign k_file
+	signed_k_file = userlib.DSSign(k_DSkey, enc_k_file)
+
+	//Create Keychain
+	var k_file_chain Keychain
+	k_file_chain.PKE_k_file = enc_k_file
+	k_file_chain.DS_k_file = signed_k_file
+
+	//Generate token
 
 	return
 }
