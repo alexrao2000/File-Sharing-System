@@ -85,6 +85,7 @@ func bytesToUUID(data []byte) (ret uuid.UUID) {
 // The structure definition for a user record
 type User struct {
 	Username string
+	K_password []byte
 	K_private userlib.PKEDecKey
 	K_DS_private userlib.DSSignKey
 	AES_key_storage_keys map[string]uuid.UUID
@@ -219,6 +220,13 @@ func bytesEqual(a, b []byte) bool {
         }
     }
     return true
+}
+
+// This handles panics and should print the error
+func HandlePanics()  {
+	if recovery := recover(); recovery != nil {
+		userlib.DebugMsg("DO NOT PANIC:", recovery)
+	}
 }
 
 // This creates a user.  It will only be called once for a user
@@ -456,6 +464,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	signed_key.DS_k_file = ds_k_file
 	signed_keys := make(map[string]SignedKey)
 	signed_keys[userdata.Username] = signed_key
+	StoreUser(userdata, userdata.K_password)
 	signed_keys_marshal, _ := json.Marshal(signed_keys)
 	userlib.DatastoreSet(ID_k, signed_keys_marshal)
 
