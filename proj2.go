@@ -102,7 +102,7 @@ type Volume struct {
 }
 
 // The structure definition for a set of a file AES key & its Digital Signature
-type Keychain struct {
+type SignedKey struct {
 	PKE_k_file []byte
 	DS_k_file []byte
 }
@@ -446,10 +446,10 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	ID_k := uuid.New()
 	userdata.AES_key_storage_keys[filename] = ID_k
 	// userdata.AES_key_indices[filename] = 0
-	var keychain Keychain
+	var keychain SignedKey
 	keychain.PKE_k_file = pke_k_file
 	keychain.DS_k_file = ds_k_file
-	keychains := make(map[string]Keychain)
+	keychains := make(map[string]SignedKey)
 	keychains[userdata.Username] = keychain
 	keychains_marshal, _ := json.Marshal(keychains)
 	userlib.DatastoreSet(ID_k, keychains_marshal)
