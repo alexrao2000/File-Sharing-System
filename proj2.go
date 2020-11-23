@@ -113,6 +113,7 @@ func StorageKeysPublicKey(username string) (string, string) {
 	return k_pubkey.String(), k_DSkey.String()
 }
 
+// Store the User struct at USERDATAPRT, with K_PASSWORD to generate keys
 func StoreUser(userdataptr *User, k_password []byte) (err error) {
 	const k_password_len uint32 = 16
 	// Encoding
