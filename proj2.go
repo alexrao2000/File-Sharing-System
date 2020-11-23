@@ -209,6 +209,7 @@ func Depad(slice []byte) []byte {
 	return slice[:last_val]
 }
 
+/*
 //Returns true if two byte slices are equal, false otherwise
 func bytesEqual(a, b []byte) bool {
     if len(a) != len(b) {
@@ -220,13 +221,21 @@ func bytesEqual(a, b []byte) bool {
         }
     }
     return true
-}
+*/
 
 // This handles panics and should print the error
 func HandlePanics()  {
 	if recovery := recover(); recovery != nil {
 		userlib.DebugMsg("DO NOT PANIC:", recovery)
 	}
+}
+
+func GetAESKeys() {
+
+}
+
+func StoreAESKeys() {
+
 }
 
 // This creates a user.  It will only be called once for a user
@@ -528,29 +537,28 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	const k_password_len uint32 = 16
 
 	//Encrypt k_file
-	k_file := userlib.RandomBytes(int(k_password_len))
+	ID_k := userdata.AES_key_storage_keys[filename]
+	k_file := userdata.AES_key_storage_keys[ID_k]
 
 	k_pubkey, _ := StorageKeysPublicKey(recipient)
 	_, k_DSkey := StorageKeysPublicKey(userdata.Username)
 	k_pub := userlib.KeystoreGet(k_pubkey)
 
-	iv := userlib.RandomBytes(userlib.AESBlockSize)
-	enc_k_file := userlib.SymEnc(k_pub, iv, k_file)
+	enc_k_file := userlib.PKEEnc(k_pub, k_file)
 
 	//Sign k_file
 	signed_k_file = userlib.DSSign(k_DSkey, enc_k_file)
 
 	//Add to SignedKey
-	ID_k := userdata.AES_key_storage_keys[filename]
 	m_SignedKeys, ok := userlib.DatastoreGet(ID_k)
 	if !ok {
 		return nil, errors.New(strings.ToTitle("File not found!"))
 	}
 
 	//Create SignedKey
-	var k_file_chain SignedKey
-	k_file_chain.PKE_k_file = enc_k_file
-	k_file_chain.DS_k_file = signed_k_file
+	var signedkey_k_file SignedKey
+	signedkey_k_file.PKE_k_file = enc_k_file
+	signedkey_k_file.DS_k_file = signed_k_file
 	SignedKeys := make(map[string]SignedKey)
 	json.Unmarshal(m_SignedKeys, SignedKeys)
 	SignedKeys[recipient.Username] = SignedKey //recipient or userdata?
