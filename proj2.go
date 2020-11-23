@@ -193,6 +193,10 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	K_DS_private, k_DS_pub, _ := userlib.DSKeyGen()
 	//userlib.DebugMsg("Key is %v, %v", k_DS_pub, K_DS_private)
 
+	//set username
+	userdata.Username = username
+	userdata.AES_key_storage_keys = make(map[string]uuid.UUID)
+
 	//store private keys
 	userdata.K_private = K_private
 	userdata.K_DS_private = K_DS_private
@@ -202,18 +206,15 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	userlib.KeystoreSet(k_pubkey, k_pub)
 	userlib.KeystoreSet(k_DSkey, k_DS_pub)
 
-	//set username
-	userdata.Username = username
-
 	// Encoding
 	user_struct, _ := json.Marshal(userdataptr)
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
 
-	salt_encrypt, _ := json.Marshal("user_encrypt")
+	salt_encrypt := []byte("user_encrypt")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
-	salt_auth, _ := json.Marshal("user_auth")
+	salt_auth := []byte("user_auth")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
-	salt_storage, _ := json.Marshal("user_storage")
+	salt_storage := []byte("user_storage")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
 
 	// Key generation
@@ -283,11 +284,11 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	var userdata User
 	userdataptr = &userdata
 
-	salt_encrypt, _ := json.Marshal("user_encrypt")
+	salt_encrypt := []byte("user_encrypt")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
-	salt_auth, _ := json.Marshal("user_auth")
+	salt_auth := []byte("user_auth")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
-	salt_storage, _ := json.Marshal("user_storage")
+	salt_storage := []byte("user_storage")
 	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
 
 	// Key generation
