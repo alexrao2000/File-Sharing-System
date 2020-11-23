@@ -87,6 +87,7 @@ type User struct {
 	Username string
 	K_private userlib.PKEDecKey
 	K_DS_private userlib.DSSignKey
+	AES_key_storage_keys map[string]uuid.UUID
 
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
@@ -174,6 +175,10 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	K_DS_private, k_DS_pub, _ := userlib.DSKeyGen()
 	//userlib.DebugMsg("Key is %v, %v", k_DS_pub, K_DS_private)
 
+	//set username
+	userdata.Username = username
+	userdata.AES_key_storage_keys = make(map[string]uuid.UUID)
+
 	//store private keys
 	userdata.K_private = K_private
 	userdata.K_DS_private = K_DS_private
@@ -182,9 +187,6 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
 	userlib.KeystoreSet(k_pubkey, k_pub)
 	userlib.KeystoreSet(k_DSkey, k_DS_pub)
-
-	//set username
-	userdata.Username = username
 
 	// Encoding
 	user_struct, _ := json.Marshal(userdataptr)
@@ -330,7 +332,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 		return nil, err
 	}
 	depadded_user := Depad(eu_plaintext)
-	
+
 	json.Unmarshal(depadded_user, userdataptr)
 
 	return userdataptr, nil
