@@ -446,13 +446,13 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	ID_k := uuid.New()
 	userdata.AES_key_storage_keys[filename] = ID_k
 	// userdata.AES_key_indices[filename] = 0
-	var keychain SignedKey
-	keychain.PKE_k_file = pke_k_file
-	keychain.DS_k_file = ds_k_file
-	keychains := make(map[string]SignedKey)
-	keychains[userdata.Username] = keychain
-	keychains_marshal, _ := json.Marshal(keychains)
-	userlib.DatastoreSet(ID_k, keychains_marshal)
+	var signed_key SignedKey
+	signed_key.PKE_k_file = pke_k_file
+	signed_key.DS_k_file = ds_k_file
+	signed_keys := make(map[string]SignedKey)
+	signed_keys[userdata.Username] = signed_key
+	signed_keys_marshal, _ := json.Marshal(signed_keys)
+	userlib.DatastoreSet(ID_k, signed_keys_marshal)
 
 	// Store data
 	stored, _ := json.Marshal(volumes_encrypted)
