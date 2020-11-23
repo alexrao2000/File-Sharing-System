@@ -523,7 +523,8 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	//Encrypt k_file
 	k_file := userlib.RandomBytes(int(k_password_len))
 
-	k_pubkey, k_DSkey := StorageKeysPublicKey(userdata.Username)
+	k_pubkey, _ := StorageKeysPublicKey(recipient)
+	_, k_DSkey := StorageKeysPublicKey(userdata.Username)
 	k_pub := userlib.KeystoreGet(k_pubkey)
 
 	iv := userlib.RandomBytes(userlib.AESBlockSize)
@@ -537,7 +538,22 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	k_file_chain.PKE_k_file = enc_k_file
 	k_file_chain.DS_k_file = signed_k_file
 
+	//Add to Keychain
+	ID_k := userdata.AES_key_storage_keys[filename]
+	m_keychains, ok := userlib.DatastoreGet(ID_k)
+	if !ok {
+		return nil, errors.New(strings.ToTitle("File not found!"))
+	}
+	keychains := make(map[string]Keychain)
+	json.Unmarshal(m_keychains, keychains)
+	keychains[recipient.Username] = keychain //recipient or userdata?
+	m_keychains, _ = json.Marshal(kechains)
+	userlib.DatastoreSet(ID_k, m_keychains)
+
 	//Generate token
+	iv = userlib.RandomBytes(userlib.AESBlockSize)
+	enc_ID_k = userlib.SymEnc(k_pub, iv, ID_k)
+	magic_string = userlib.DSSign(k_DSkey, enc_ID_k)
 
 	return
 }
