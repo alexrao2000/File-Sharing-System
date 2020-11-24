@@ -385,7 +385,6 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 			}
 		}
 	}
-
 	return volume, pad_last, nil
 }
 
