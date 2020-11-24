@@ -35,7 +35,7 @@ func TestInit(t *testing.T) {
 		return
 	}
 	// t.Log() only produces output if you run with "go test -v"
-	t.Log("Initialized user", u1)
+	//t.Log("Initialized user", u1)
 	// If you want to comment the line above,
 	// write _ = u here to make the compiler happy
 	// You probably want many more tests here.
@@ -45,7 +45,10 @@ func TestInit(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	t.Log("Got user", u2)
+	//t.Log("Got user", u2)
+	if reflect.DeepEqual(u1, u2) {
+		t.Log("User was initialized and got")
+	}
 }
 
 func TestStorage(t *testing.T) {
