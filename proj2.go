@@ -643,6 +643,9 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 // it is authentically from the sender.
 func (userdata *User) ReceiveFile(filename string, sender string,
 	magic_string string) error {
+
+	StorageKeysPublicKey(sender)
+
 	return nil
 }
 
