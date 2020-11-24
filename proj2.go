@@ -936,7 +936,6 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	const VOLUME_SIZE = 1048576 // 2^20 bytes
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
-
 	// Initialize direct recipients
 	var recipients []string
 	userdata.Direct_recipients[filename] = recipients
