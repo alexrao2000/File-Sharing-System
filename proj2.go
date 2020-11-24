@@ -173,6 +173,7 @@ func StoreUser(userdataptr *User, k_password []byte) (err error) {
 
 	// Padding
 	pad_len := (len(user_struct) / 16 + 1) * 16
+	//userlib.DebugMsg("size: %v", len(user_struct))
 	padded_struct := Pad(user_struct, len(user_struct), pad_len)
 
 	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, padded_struct)
@@ -205,7 +206,7 @@ func Pad(slice []byte, present_length int, target_length int) []byte {
 //Depad a padded byte array, ex. user_struct
 func Depad(slice []byte) []byte {
 	pad_len := int(slice[len(slice)-1])
-	last_val := len(slice) - (pad_len + 1)
+	last_val := len(slice) - pad_len
 	return slice[:last_val]
 }
 
@@ -221,6 +222,7 @@ func bytesEqual(a, b []byte) bool {
         }
     }
     return true
+}
 */
 
 // This handles panics and should print the error
@@ -407,10 +409,10 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	}
 
 	//Decryption
-	eu_cyphertext := existing_user[64:]
+	eu_cyphertext := existing_user[HMAC_size:]
 	eu_plaintext := userlib.SymDec(k_user_encrypt, eu_cyphertext)
-	stored_hmac := existing_user[:64]
-	userlib.DebugMsg("size: %v, %v, %v", len(stored_hmac), len(eu_cyphertext), len(existing_user))
+	stored_hmac := existing_user[:HMAC_size]
+	//userlib.DebugMsg("size: %v, %v, %v", len(stored_hmac), len(eu_cyphertext), len(existing_user))
 	evaluated_hmac, err := userlib.HashKDF(k_user_auth, eu_cyphertext)
 	if err != nil {
 		return nil, err
@@ -420,7 +422,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 		return nil, err
 	}
 	depadded_user := Depad(eu_plaintext)
-
+	//userlib.DebugMsg("size: %v", len(depadded_user))
 	json.Unmarshal(depadded_user, userdataptr)
 
 	return userdataptr, nil
@@ -432,9 +434,9 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 // should NOT be revealed to the datastore!
 func (userdata *User) StoreFile(filename string, data []byte) {
 	// Parameter
-	const VOLUME_SIZE = 1073741824 // 2^30 bytes
+	const VOLUME_SIZE = 1048576 // 2^20 bytes
 	const k_password_len uint32 = 16
-	const ENCRYPTED_VOLUME_SIZE = 1073741824 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
+	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
 	// userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
 
 	// Encoding
