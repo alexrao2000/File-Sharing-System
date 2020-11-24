@@ -227,6 +227,42 @@ func bytesEqual(a, b []byte) bool {
 }
 */
 
+func EncryptAndMACVolume(volume []byte, index int, k_file []byte) (encrypted_volume Volume, err error) {
+	const k_password_len uint32 = 16
+
+	// Encrypt
+	iv := userlib.RandomBytes(userlib.AESBlockSize)
+	index_string := strconv.Itoa(index)
+	salt_volume_encryption := []byte("volume_encryption" + index_string)
+	salt_volume_authentication := []byte("volume_authentication" + index_string)
+	var volume_encrypted Volume
+	k_volume, err := userlib.HashKDF(k_file,
+		salt_volume_encryption)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return volume_encrypted, err
+	}
+	k_volume = k_volume[:k_password_len]
+	defer HandlePanics()
+	volume_encrypted.Ciphertext = userlib.SymEnc(k_volume, iv, volume)
+
+	// Authentication
+	k_volume_MAC, err := userlib.HashKDF(k_file,
+		salt_volume_authentication)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return volume_encrypted, err
+	}
+	k_volume_MAC = k_volume_MAC[:k_password_len]
+	volume_encrypted.MAC, err = userlib.HMACEval(k_volume_MAC, volume_encrypted.Ciphertext)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return volume_encrypted, err
+	}
+
+	return volume_encrypted, nil
+}
+
 // This handles panics and should print the error
 func HandlePanics()  {
 	if recovery := recover(); recovery != nil {
@@ -456,7 +492,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
 	// userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
-	
+
 	// Initialize direct recipients
 	var recipients []string
 	userdata.Direct_recipients[filename] = recipients
@@ -485,36 +521,14 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	volumes[n_volumes - 1] = last_volume
 	// Encryption & authentication
 	k_file := userlib.RandomBytes(int(k_password_len))
-	iv := make([]byte, userlib.AESBlockSize)
 	// var k_volume [k_password_len]byte
 	for index, volume := range volumes {
-		index_string := strconv.Itoa(index)
-		// Encrypt
-		iv = userlib.RandomBytes(userlib.AESBlockSize)
-		salt_volume_encryption := []byte("volume_encryption" + index_string)
-		salt_volume_authentication := []byte("volume_authentication" + index_string)
-		k_volume, err := userlib.HashKDF(k_file,
-			salt_volume_encryption)
+		volume_encrypted, err := EncryptAndMACVolume(volume, index, k_file)
 		if err != nil {
 			userlib.DebugMsg("%v", err)
 			return
 		}
-		k_volume = k_volume[:k_password_len]
-		defer HandlePanics()
-		volumes_encrypted[index].Ciphertext = userlib.SymEnc(k_volume, iv, volume)
-		// Authentication
-		k_volume_MAC, err := userlib.HashKDF(k_file,
-			salt_volume_authentication)
-		if err != nil {
-			userlib.DebugMsg("%v", err)
-			return
-		}
-		k_volume_MAC = k_volume_MAC[:k_password_len]
-		volumes_encrypted[index].MAC, err = userlib.HMACEval(k_volume_MAC, volumes_encrypted[index].Ciphertext)
-		if err != nil {
-			userlib.DebugMsg("%v", err)
-			return
-		}
+		volumes_encrypted[index] = volume_encrypted
 	}
 	// Fetch public keys
 	k_pubkey, _ := StorageKeysPublicKey(userdata.Username)
@@ -523,6 +537,17 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		userlib.DebugMsg("%v", errors.New(strings.ToTitle("Public key fetch failed")))
 		return
 	}
+
+	// Store data
+	ID_k := uuid.New()
+	stored, _ := json.Marshal(volumes_encrypted)
+	hash_ID_k := userlib.Hash([]byte(ID_k.String()))
+	ID_file, err := uuid.FromBytes(hash_ID_k[:16])
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return
+	}
+	userlib.DatastoreSet(ID_file, stored)
 
 	// PKE & Publish AES key
 	k_file_front_padded := make([]byte, k_password_len * 2)
@@ -538,7 +563,6 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		userlib.DebugMsg("%v", err)
 		return
 	}
-	ID_k := uuid.New()
 	userdata.AES_key_storage_keys[filename] = ID_k
 	// userdata.AES_key_indices[filename] = 0
 	var signed_key SignedKey
@@ -550,15 +574,6 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	signed_keys_marshal, _ := json.Marshal(signed_keys)
 	userlib.DatastoreSet(ID_k, signed_keys_marshal)
 
-	// Store data
-	stored, _ := json.Marshal(volumes_encrypted)
-	hash_ID_k := userlib.Hash([]byte(ID_k.String()))
-	ID_file, err := uuid.FromBytes(hash_ID_k[:16])
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return
-	}
-	userlib.DatastoreSet(ID_file, stored)
 	return
 }
 
@@ -607,10 +622,6 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	magic_string string, err error) {
 	const k_password_len uint32 = 16
 
-	//Add recipient to direct recipients
-	d_r := userdata.Direct_recipients[filename]
-	userdata.Direct_recipients[filename] = append(d_r, recipient)
-
 	//Retrieve k_file
 	ID_k := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, userdata)
@@ -628,7 +639,6 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 
 	//Create SignedKey
 	StoreAESKeys(ID_k, k_file, userdata, recipient)
-	StoreUser(userdata, userdata.K_password)
 
 	//Generate token
 	bytes_ID_k, err := json.Marshal(ID_k)
@@ -652,9 +662,16 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 		return "", err
 	}
 
+	//Add recipient to direct recipients
+	direct_recipients, exists := userdata.Direct_recipients[filename]
+	if exists {
+		userdata.Direct_recipients[filename] = append(direct_recipients, recipient)
+		StoreUser(userdata, userdata.K_password)
+	}
+
 	magic_string = hex.EncodeToString(bytes_token)
 
-	return magic_string, err
+	return magic_string, nil
 }
 
 // Note recipient's filename can be different from the sender's filename.
@@ -663,6 +680,11 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 // it is authentically from the sender.
 func (userdata *User) ReceiveFile(filename string, sender string,
 	magic_string string) error {
+
+	//Check if filename exists already
+	if _, ok := userdata.AES_key_storage_keys[filename]; ok {
+    	return errors.New(strings.ToTitle("File with that name already exists!"))
+	}
 
 	//Retrieve keys
 	_, k_DSkey := StorageKeysPublicKey(sender)
@@ -694,10 +716,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 		return err
 	}
 
-	if userdata.AES_key_storage_keys[filename] != ID_k {
-		userdata.AES_key_storage_keys[filename] = ID_k
-	}
-
+	userdata.AES_key_storage_keys[filename] = ID_k
 	/*
 	//Add new file to map
 	k_file, err := GetAESKeys(ID_k, userdata)
@@ -706,8 +725,9 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	}
 
 	StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
-	StoreUser(userdata, userdata.K_password)
 	*/
+
+	StoreUser(userdata, userdata.K_password)
 
 	return err
 }
@@ -716,7 +736,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 func (userdata *User) RevokeFile(filename string, target_username string) (err error) {
 	const k_password_len uint32 = 16
 
-	k_file := userlib.RandomBytes(int(k_password_len))
+	//k_file := userlib.RandomBytes(int(k_password_len))
 
 	return
 }
