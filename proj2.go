@@ -616,6 +616,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 
 	//Create SignedKey
 	StoreAESKeys(ID_k, k_file, userdata, recipient)
+	StoreUser(userdata, userdata.K_password)
 
 	//Generate token
 	bytes_ID_k, err := json.Marshal(ID_k)
