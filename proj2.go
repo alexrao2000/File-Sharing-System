@@ -664,7 +664,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 
 	//Add recipient to direct recipients
 	direct_recipients, exists := userdata.Direct_recipients[filename]
-	if exists{
+	if exists {
 		userdata.Direct_recipients[filename] = append(direct_recipients, recipient)
 		StoreUser(userdata, userdata.K_password)
 	}
