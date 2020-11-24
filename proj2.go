@@ -516,6 +516,10 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
 	// userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
+	
+	// Initialize direct recipients
+	var recipients []string
+	userdata.Direct_recipients[filename] = recipients
 
 	// Initialize direct recipients
 	var recipients []string
@@ -650,6 +654,10 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	magic_string string, err error) {
 	const k_password_len uint32 = 16
 
+	//Add recipient to direct recipients
+	d_r := userdata.Direct_recipients[filename]
+	userdata.Direct_recipients[filename] = append(d_r, recipient)
+
 	//Retrieve k_file
 	ID_k := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, userdata)
@@ -745,6 +753,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	}
 
 	userdata.AES_key_storage_keys[filename] = ID_k
+
 	/*
 	//Add new file to map
 	k_file, err := GetAESKeys(ID_k, userdata)
@@ -764,7 +773,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 func (userdata *User) RevokeFile(filename string, target_username string) (err error) {
 	const k_password_len uint32 = 16
 
-	k_file := userlib.RandomBytes(int(k_password_len))
+	//k_file := userlib.RandomBytes(int(k_password_len))
 
 	return
 }
