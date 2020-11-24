@@ -266,12 +266,12 @@ func EncryptAndMACVolume(volume []byte, index int, k_file []byte) (encrypted_vol
 }
 
 // Load, verify, & decrypt volumes of FILENAME with USERDATA's credentials
-func LoadVolumes(userdata *User, filename string) ([]byte, error) {
+func LoadVolumes(userdata *User, filename string) (volumes [][]byte, err error) {
 	// Get AES keys
 	ID_k := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, userdata)
 	if err != nil {
-		return "", errors.New(strings.ToTitle("File not found!"))
+		return nil, errors.New(strings.ToTitle("File not found!"))
 	}
 
 	// Get ciphertext
@@ -290,19 +290,35 @@ func LoadVolumes(userdata *User, filename string) ([]byte, error) {
 
 	// Verify & decrypt
 	n_volumes := len(volumes_encrypted)
-	for index, volume_encrypted := volumes_encrypted {
-		VerifyAndDecryptVolume(volume_encrypted, index, n_volumes, k_file)
+	var pad_last uint32
+	for index, volume_encrypted := range volumes_encrypted {
+		volumes[index], pad_last, err = VerifyAndDecryptVolume(volume_encrypted, index, n_volumes, k_file)
+		// pad_last is finalised in last iteration
+		if err != nil {
+			userlib.DebugMsg("%v", err)
+			return nil, err
+		}
 	}
+	return volumes, nil
 }
 
 /* Verify and Decrypt VOLUME_ENCRYPTED at INDEX in the volume array
  that is N_VOLUMES long with key K_FILE */
 func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k_file []byte) (volumes [][]byte, pad_last uint32, err error) {
+	const VOLUME_SIZE = 1048576 // 2^20 bytes
+	const k_password_len uint32 = 16
+	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
+
+	// Check length
+	if len(volume_encrypted.Ciphertext) != ENCRYPTED_VOLUME_SIZE {
+		return nil, 0, errors.New(strings.ToTitle("Wrong ciphertext length"))
+	}
+
 	// Check padding
-	var pad_last uint32 = 0
+	pad_last = 0
 	if index == n_volumes - 1 {
 		pad_last = volume_encrypted.N_pad
-	} else if volume_encrypted.N_pad != 0{
+	} else if volume_encrypted.N_pad != 0 {
 		return nil, 0, errors.New(strings.ToTitle("Non-last volume has non-zero padding"))
 	}
 
@@ -328,16 +344,15 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 
 	// Decrypt
 	salt_volume_encryption := []byte("volume_encryption" + index_string)
-	var volume_encrypted Volume
 	k_volume, err := userlib.HashKDF(k_file,
 		salt_volume_encryption)
 	if err != nil {
 		userlib.DebugMsg("%v", err)
-		return volume_encrypted, err
+		return nil, 0, err
 	}
 	k_volume = k_volume[:k_password_len]
 	defer HandlePanics()
-	volume := SymDec(k_volume, volume_encrypted.Ciphertext)
+	volume := userlib.SymDec(k_volume, volume_encrypted.Ciphertext)
 
 	return volume, pad_last, nil
 }
@@ -679,10 +694,10 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
 
-	volumes = LoadVolumes(userdata, filename)
+	volumes, err := LoadVolumes(userdata, filename)
 	// Combine volumes
 
-	return data, nil
+	return volumes[0], nil
 	//End of toy implementation
 
 	return
