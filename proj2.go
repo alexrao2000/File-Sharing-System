@@ -616,7 +616,9 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 
 	//Create SignedKey
 	StoreAESKeys(ID_k, k_file, userdata, recipient)
-	StoreUser(userdata, userdata.K_password)
+	
+	// Update recipient list AFTER CHECKING WHETHER THE USER OWNS THE FILE ALREADY (i.e. has the filename in their direct recipient map, which should ONLY BE CALLED IN STOREFILE)
+// 	StoreUser(userdata, userdata.K_password)
 
 	//Generate token
 	bytes_ID_k, err := json.Marshal(ID_k)
@@ -642,7 +644,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 
 	magic_string = hex.EncodeToString(bytes_token)
 
-	return magic_string, err
+	return magic_string, nil
 }
 
 // Note recipient's filename can be different from the sender's filename.
