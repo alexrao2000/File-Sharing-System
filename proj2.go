@@ -745,7 +745,11 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	// userlib.DebugMsg("Packaged data %v", packaged_data[:30])
 
 	// Splitting
-	volumes, volumes_encrypted := SplitData(packaged_data)
+	volumes, volumes_encrypted, err := SplitData(packaged_data)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return
+	}
 
 	// Encrypt & authenticate
 	k_file := userlib.RandomBytes(int(k_password_len))
@@ -823,10 +827,6 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 func (userdata *User) ShareFile(filename string, recipient string) (
 	magic_string string, err error) {
 	const k_password_len uint32 = 16
-
-	//Add recipient to direct recipients
-	d_r := userdata.Direct_recipients[filename]
-	userdata.Direct_recipients[filename] = append(d_r, recipient)
 
 	//Retrieve k_file
 	ID_k := userdata.AES_key_storage_keys[filename]
@@ -939,7 +939,6 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	*/
 
 	StoreUser(userdata, userdata.K_password)
-	*/
 
 	return err
 }
@@ -948,7 +947,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 func (userdata *User) RevokeFile(filename string, target_username string) (err error) {
 	const k_password_len uint32 = 16
 
-	k_file := userlib.RandomBytes(int(k_password_len))
+	//k_file := userlib.RandomBytes(int(k_password_len))
 
 	return
 }
