@@ -762,5 +762,9 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 
 // Removes target user's access.
 func (userdata *User) RevokeFile(filename string, target_username string) (err error) {
+	const k_password_len uint32 = 16
+
+	k_file := userlib.RandomBytes(int(k_password_len))
+
 	return
 }
