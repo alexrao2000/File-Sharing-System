@@ -796,7 +796,9 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 		return err
 	}
 
-	userdata.AES_key_storage_keys[filename] = ID_k
+	if userdata.AES_key_storage_keys[filename] != ID_k {
+		userdata.AES_key_storage_keys[filename] = ID_k
+	}
 
 	/*
 	//Add new file to map
@@ -812,6 +814,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	*/
 
 	StoreUser(userdata, userdata.K_password)
+	*/
 
 	return nil
 }
