@@ -503,12 +503,13 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 }
 
 // Load, verify, & decrypt volumes of FILENAME with USERDATA's credentials
-func LoadVolumes(userdata *User, filename string) (volumes [][]byte, err error) {
+func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last uint32, err error) {
 	// Get AES keys
-	ID_k := userdata.AES_key_storage_keys[filename]
+	ID_k, exists := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, userdata)
-	if err != nil {
-		return nil, errors.New(strings.ToTitle("File not found!"))
+	if err != nil || !exists {
+		// userlib.DebugMsg("k_file %v", k_file)
+		return nil, 0, err
 	}
 
 	// Get ciphertext
@@ -520,34 +521,35 @@ func LoadVolumes(userdata *User, filename string) (volumes [][]byte, err error) 
 	}
 	stored, ok := userlib.DatastoreGet(ID_file)
 	if !ok {
-		return nil, errors.New(strings.ToTitle("File not found!"))
+		return nil, 0, errors.New(strings.ToTitle("File not found!"))
 	}
 	var volumes_encrypted []Volume
 	json.Unmarshal(stored, &volumes_encrypted)
 
 	// Verify & decrypt
 	n_volumes := len(volumes_encrypted)
-	var pad_last uint32
+	volumes = make([][]byte, n_volumes)
 	for index, volume_encrypted := range volumes_encrypted {
 		volumes[index], pad_last, err = VerifyAndDecryptVolume(volume_encrypted, index, n_volumes, k_file)
 		// pad_last is finalised in last iteration
 		if err != nil {
 			userlib.DebugMsg("%v", err)
-			return nil, err
+			return nil, 0, err
 		}
 	}
-	return volumes, nil
+	return volumes, pad_last, nil
 }
 
 /* Verify and Decrypt VOLUME_ENCRYPTED at INDEX in the volume array
  that is N_VOLUMES long with key K_FILE */
-func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k_file []byte) (volumes [][]byte, pad_last uint32, err error) {
+func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k_file []byte) (volume []byte, pad_last uint32, err error) {
 	const VOLUME_SIZE = 1048576 // 2^20 bytes
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
 
 	// Check length
 	if len(volume_encrypted.Ciphertext) != ENCRYPTED_VOLUME_SIZE {
+		userlib.DebugMsg("Ciphertext length", len(volume_encrypted.Ciphertext))
 		return nil, 0, errors.New(strings.ToTitle("Wrong ciphertext length"))
 	}
 
@@ -589,8 +591,23 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 	}
 	k_volume = k_volume[:k_password_len]
 	defer HandlePanics()
-	volume := userlib.SymDec(k_volume, volume_encrypted.Ciphertext)
+	volume = userlib.SymDec(k_volume, volume_encrypted.Ciphertext)
 
+	if pad_last != 0 {
+		for i := VOLUME_SIZE - pad_last; i < VOLUME_SIZE; i++ {
+			if volume[i] != byte(pad_last % 256) {
+				return nil, 0, errors.New(strings.ToTitle("Padding mismatch"))
+			}
+		}
+	}
+
+	if pad_last != 0 {
+		for i := VOLUME_SIZE - pad_last; i < VOLUME_SIZE; i++ {
+			if volume[i] != byte(pad_last % 256) {
+				return nil, 0, errors.New(strings.ToTitle("Padding mismatch"))
+			}
+		}
+	}
 	return volume, pad_last, nil
 }
 
@@ -827,7 +844,6 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	const VOLUME_SIZE = 1048576 // 2^20 bytes
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
-	// userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
 
 	// Initialize direct recipients
 	var recipients []string
@@ -838,11 +854,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	// userlib.DebugMsg("Packaged data %v", packaged_data[:30])
 
 	// Splitting
-	volumes, volumes_encrypted, err := SplitData(packaged_data)
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return
-	}
+	volumes, volumes_encrypted := SplitData(packaged_data)
 
 	// Encrypt & authenticate
 	k_file := userlib.RandomBytes(int(k_password_len))
@@ -921,10 +933,6 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	magic_string string, err error) {
 	const k_password_len uint32 = 16
 
-	//Add recipient to direct recipients
-	d_r := userdata.Direct_recipients[filename]
-	userdata.Direct_recipients[filename] = append(d_r, recipient)
-
 	//Retrieve k_file
 	ID_k := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, filename, userdata)
@@ -965,7 +973,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 		return "", err
 	}
 
-	//Add recipient to direct recipients if user owns file
+	//Add recipient to direct recipients
 	direct_recipients, exists := userdata.Direct_recipients[filename]
 	if exists {
 		userdata.Direct_recipients[filename] = append(direct_recipients, recipient)
@@ -1032,16 +1040,12 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 		return err
 	}
 
-	err := StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
-	if err != nil {
-		return err
-	}
+	StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
 	*/
 
 	StoreUser(userdata, userdata.K_password)
-	*/
 
-	return nil
+	return err
 }
 
 // Removes target user's access.
