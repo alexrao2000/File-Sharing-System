@@ -1142,6 +1142,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	*/
 
 	StoreUser(userdata, userdata.K_password)
+	*/
 
 	return nil
 }
