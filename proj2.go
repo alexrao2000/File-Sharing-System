@@ -620,8 +620,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	//Generate token
 	bytes_ID_k, err := json.Marshal(ID_k)
 	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return
+		return "", err
 	}
 	enc_ID_k, err := userlib.PKEEnc(k_pub, bytes_ID_k)
 	if err != nil {
@@ -632,7 +631,15 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 		return "", errors.New(strings.ToTitle("File not found!"))
 	}
 
-	magic_string = hex.EncodeToString(signed_ID_k)
+	var token SignedKey
+	token.PKE_k_file = enc_ID_k
+	token.DS_k_file = signed_ID_k
+	bytes_token, err := json.Marshal(token)
+	if err != nil {
+		return "", err
+	}
+
+	magic_string = hex.EncodeToString(bytes_token)
 
 	return magic_string, err
 }
