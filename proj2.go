@@ -232,9 +232,8 @@ func HandlePanics()  {
 	}
 }
 
-func GetAESKeys(userdata *User) ([]byte, error) {
+func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
 
-	ID_k := userdata.AES_key_storage_keys[filename]
 	m_keys, ok := userlib.DatastoreGet(ID_k)
 	if !ok {
 		return nil, errors.New(strings.ToTitle("File not found!"))
@@ -251,28 +250,43 @@ func GetAESKeys(userdata *User) ([]byte, error) {
 	}
 	err := userlib.DSVerify(k_DS_pub, signed_key.PKE_k_file, signed_key.DS_k_file)
 	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return
+		return nil, err
 	}
 
 	pke_k_file := signed_key.PKE_k_file
-	k_file_front_padded, err := userlib.PKEDec(userdate.K_private, k_file_front_padded)
+	k_file_front_padded, err := userlib.PKEDec(userdata.K_private, pke_k_file)
 	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return
+		return nil, err
 	}
 
-	k_file := k_file_front_padded[k_password_len:]
+	k_file := k_file_front_padded[16:]
 	return k_file, nil
 
 }
 
-func StoreAESKeys(k_file []byte, recipient String) error {
+func StoreAESKeys(ID_k uuid.UUID, k_file []byte, userdata *User, recipient string) error {
 
-	ID_k := userdata.AES_key_storage_keys[filename]
 	m_keys, ok := userlib.DatastoreGet(ID_k)
 	if !ok {
 		return errors.New(strings.ToTitle("No marshalled keys found!"))
+	}
+
+	//Obtain user's sign key and recipient's public key
+	k_pubkey, _ := StorageKeysPublicKey(recipient)
+	k_DS_private := userdata.K_DS_private
+	k_pub, ok := userlib.KeystoreGet(k_pubkey)
+	if !ok {
+		return errors.New(strings.ToTitle("k_pub not found in Keystore!"))
+	}
+
+	//Sign and Encrypt
+	enc_k_file, err := userlib.PKEEnc(k_pub, k_file)
+	if err != nil {
+		return err
+	}
+	signed_k_file, err := userlib.DSSign(k_DS_private, enc_k_file)
+	if err != nil {
+		return err
 	}
 
 	//Create SignedKey
@@ -285,7 +299,7 @@ func StoreAESKeys(k_file []byte, recipient String) error {
 	m_keys, _ = json.Marshal(signed_keys)
 	userlib.DatastoreSet(ID_k, m_keys)
 
-	return
+	return err
 
 }
 
@@ -549,7 +563,7 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	// Find UUID of keys
 	ID_k := userdata.AES_key_storage_keys[filename]
 	// index_k = userdata.AES_key_indices[filename]
-	userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
+	userlib.DatastoreSet(ID_k, append(ds_k_file, pke_k_file))
 	// ID_k := userdata.AES_key_storage_keys[filename]
 	// userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
 	return
@@ -588,25 +602,8 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	const k_password_len uint32 = 16
 
 	//Retrieve k_file
-	k_file, err := GetAESKeys(userdata)
-	if err != nil {
-		return nil, errors.New(strings.ToTitle("File not found!"))
-	}
-
-	//Obtain user's sign key and recipient's public key
-	k_pubkey, _ := StorageKeysPublicKey(recipient)
-	k_DS_private := userdata.K_DS_private
-	k_pub, ok := userlib.KeystoreGet(k_pubkey)
-	if !ok {
-		return nil, errors.New(strings.ToTitle("File not found!"))
-	}
-
-	//Sign and Encrypt
-	enc_k_file, err := userlib.PKEEnc(k_pub, k_file)
-	if err != nil {
-		return nil, errors.New(strings.ToTitle("File not found!"))
-	}
-	signed_k_file, err := userlib.DSSign(k_DSkey, enc_k_file)
+	ID_k := userdata.AES_key_storage_keys[filename]
+	k_file, err := GetAESKeys(ID_k, userdata)
 	if err != nil {
 		return nil, errors.New(strings.ToTitle("File not found!"))
 	}
@@ -615,7 +612,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	
 
 	//Create SignedKey
-	StoreAESKeys(k_file, recipient)
+	StoreAESKeys(ID_k, k_file, userdata, recipient)
 
 	//Generate token
 	iv = userlib.RandomBytes(userlib.AESBlockSize)
