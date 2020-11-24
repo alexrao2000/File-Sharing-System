@@ -169,7 +169,7 @@ func StoreUser(userdataptr *User, k_password []byte) (err error) {
 		return err
 	}
 
-	// Encryption
+	// Encrypt
 
 	iv := userlib.RandomBytes(userlib.AESBlockSize)
 
@@ -227,14 +227,15 @@ func bytesEqual(a, b []byte) bool {
 }
 */
 
+// Encrypt and MAC VOLUME at index INDEX in the volume array with AES key K_FILE
 func EncryptAndMACVolume(volume []byte, index int, k_file []byte) (encrypted_volume Volume, err error) {
 	const k_password_len uint32 = 16
 
+	index_string := strconv.Itoa(index)
+
 	// Encrypt
 	iv := userlib.RandomBytes(userlib.AESBlockSize)
-	index_string := strconv.Itoa(index)
 	salt_volume_encryption := []byte("volume_encryption" + index_string)
-	salt_volume_authentication := []byte("volume_authentication" + index_string)
 	var volume_encrypted Volume
 	k_volume, err := userlib.HashKDF(k_file,
 		salt_volume_encryption)
@@ -246,7 +247,8 @@ func EncryptAndMACVolume(volume []byte, index int, k_file []byte) (encrypted_vol
 	defer HandlePanics()
 	volume_encrypted.Ciphertext = userlib.SymEnc(k_volume, iv, volume)
 
-	// Authentication
+	// Authenticate
+	salt_volume_authentication := []byte("volume_authentication" + index_string)
 	k_volume_MAC, err := userlib.HashKDF(k_file,
 		salt_volume_authentication)
 	if err != nil {
@@ -263,6 +265,83 @@ func EncryptAndMACVolume(volume []byte, index int, k_file []byte) (encrypted_vol
 	return volume_encrypted, nil
 }
 
+// Load, verify, & decrypt volumes of FILENAME with USERDATA's credentials
+func LoadVolumes(userdata *User, filename string) ([]byte, error) {
+	// Get AES keys
+	ID_k := userdata.AES_key_storage_keys[filename]
+	k_file, err := GetAESKeys(ID_k, userdata)
+	if err != nil {
+		return "", errors.New(strings.ToTitle("File not found!"))
+	}
+
+	// Get ciphertext
+	hash_ID_k := userlib.Hash([]byte(ID_k.String()))
+	ID_file, err := uuid.FromBytes(hash_ID_k[:16])
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return
+	}
+	stored, ok := userlib.DatastoreGet(ID_file)
+	if !ok {
+		return nil, errors.New(strings.ToTitle("File not found!"))
+	}
+	var volumes_encrypted []Volume
+	json.Unmarshal(stored, &volumes_encrypted)
+
+	// Verify & decrypt
+	n_volumes := len(volumes_encrypted)
+	for index, volume_encrypted := volumes_encrypted {
+		VerifyAndDecryptVolume(volume_encrypted, index, n_volumes, k_file)
+	}
+}
+
+/* Verify and Decrypt VOLUME_ENCRYPTED at INDEX in the volume array
+ that is N_VOLUMES long with key K_FILE */
+func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k_file []byte) (volumes [][]byte, pad_last uint32, err error) {
+	// Check padding
+	var pad_last uint32 = 0
+	if index == n_volumes - 1 {
+		pad_last = volume_encrypted.N_pad
+	} else if volume_encrypted.N_pad != 0{
+		return nil, 0, errors.New(strings.ToTitle("Non-last volume has non-zero padding"))
+	}
+
+	index_string := strconv.Itoa(index)
+
+	// Verify
+	salt_volume_authentication := []byte("volume_authentication" + index_string)
+	k_volume_MAC, err := userlib.HashKDF(k_file,
+		salt_volume_authentication)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return nil, 0, err
+	}
+	k_volume_MAC = k_volume_MAC[:k_password_len]
+	MAC, err := userlib.HMACEval(k_volume_MAC, volume_encrypted.Ciphertext)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return nil, 0, err
+	}
+	if !userlib.HMACEqual(volume_encrypted.MAC, MAC){
+		return nil, 0, errors.New(strings.ToTitle("Verification failed"))
+	}
+
+	// Decrypt
+	salt_volume_encryption := []byte("volume_encryption" + index_string)
+	var volume_encrypted Volume
+	k_volume, err := userlib.HashKDF(k_file,
+		salt_volume_encryption)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return volume_encrypted, err
+	}
+	k_volume = k_volume[:k_password_len]
+	defer HandlePanics()
+	volume := SymDec(k_volume, volume_encrypted.Ciphertext)
+
+	return volume, pad_last, nil
+}
+
 // This handles panics and should print the error
 func HandlePanics()  {
 	if recovery := recover(); recovery != nil {
@@ -270,6 +349,7 @@ func HandlePanics()  {
 	}
 }
 
+// GET AES keys from Datastore at ID_K with USERDATA's credentials
 func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
 
 	m_keys, ok := userlib.DatastoreGet(ID_k)
@@ -487,7 +567,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 // The plaintext of the filename + the plaintext and length of the filename
 // should NOT be revealed to the datastore!
 func (userdata *User) StoreFile(filename string, data []byte) {
-	// Parameter
+	// Parameters
 	const VOLUME_SIZE = 1048576 // 2^20 bytes
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
@@ -519,7 +599,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE)
 	volumes_encrypted[n_volumes - 1].N_pad = uint32(VOLUME_SIZE - remainder_data_size)
 	volumes[n_volumes - 1] = last_volume
-	// Encryption & authentication
+	// Encrypt & authenticate
 	k_file := userlib.RandomBytes(int(k_password_len))
 	// var k_volume [k_password_len]byte
 	for index, volume := range volumes {
@@ -594,14 +674,14 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 //
 // It should give an error if the file is corrupted in any way.
 func (userdata *User) LoadFile(filename string) (data []byte, err error) {
+	// Parameters
+	const VOLUME_SIZE = 1048576 // 2^20 bytes
+	const k_password_len uint32 = 16
+	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
 
-	//TODO: This is a toy implementation.
-	UUID, _ := uuid.FromBytes([]byte(filename + userdata.Username)[:16])
-	packaged_data, ok := userlib.DatastoreGet(UUID)
-	if !ok {
-		return nil, errors.New(strings.ToTitle("File not found!"))
-	}
-	json.Unmarshal(packaged_data, &data)
+	volumes = LoadVolumes(userdata, filename)
+	// Combine volumes
+
 	return data, nil
 	//End of toy implementation
 
