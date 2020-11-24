@@ -608,8 +608,8 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	const k_password_len uint32 = 16
 
 	//Add recipient to direct recipients
-	d_r := userdata.Direct_recipients[filename]
-	userdata.Direct_recipients[filename] = append(d_r, recipient)
+	direct_recipients := userdata.Direct_recipients[filename]
+	userdata.Direct_recipients[filename] = append(direct_recipients, recipient)
 
 	//Retrieve k_file
 	ID_k := userdata.AES_key_storage_keys[filename]
