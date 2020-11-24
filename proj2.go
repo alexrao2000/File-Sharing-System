@@ -628,8 +628,9 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 
 	//Create SignedKey
 	StoreAESKeys(ID_k, k_file, userdata, recipient)
-	StoreUser(userdata, userdata.K_password)
 
+	StoreUser(userdata, userdata.K_password)
+  
 	//Generate token
 	bytes_ID_k, err := json.Marshal(ID_k)
 	if err != nil {
@@ -654,7 +655,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 
 	magic_string = hex.EncodeToString(bytes_token)
 
-	return magic_string, err
+	return magic_string, nil
 }
 
 // Note recipient's filename can be different from the sender's filename.
