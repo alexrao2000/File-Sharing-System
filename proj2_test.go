@@ -28,24 +28,24 @@ func TestInit(t *testing.T) {
 	// You can set this to false!
 	userlib.SetDebugStatus(true)
 
-	u, err := InitUser("alice", "fubar")
+	u1, err := InitUser("alice", "fubar")
 	if err != nil {
 		// t.Error says the test fails
 		t.Error("Failed to initialize user", err)
 		return
 	}
 	// t.Log() only produces output if you run with "go test -v"
-	t.Log("Initialized user", u)
+	t.Log("Initialized user", u1)
 	// If you want to comment the line above,
 	// write _ = u here to make the compiler happy
 	// You probably want many more tests here.
-	u, err = GetUser("alice", "fubar")
+	u2, err := GetUser("alice", "fubar")
 	if err != nil {
 		// t.Error says the test fails
 		t.Error(err)
 		return
 	}
-	t.Log("Got user", u)
+	t.Log("Got user", u2)
 }
 
 func TestStorage(t *testing.T) {
