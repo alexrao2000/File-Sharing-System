@@ -295,7 +295,7 @@ func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last ui
 	ID_k, exists := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, userdata)
 	if err != nil || !exists {
-		userlib.DebugMsg("%v", err)
+		userlib.DebugMsg("k_file %v", k_file)
 		return nil, 0, err
 	}
 
@@ -315,6 +315,7 @@ func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last ui
 
 	// Verify & decrypt
 	n_volumes := len(volumes_encrypted)
+	volumes = make([][]byte, n_volumes)
 	for index, volume_encrypted := range volumes_encrypted {
 		volumes[index], pad_last, err = VerifyAndDecryptVolume(volume_encrypted, index, n_volumes, k_file)
 		// pad_last is finalised in last iteration
@@ -335,6 +336,7 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 
 	// Check length
 	if len(volume_encrypted.Ciphertext) != ENCRYPTED_VOLUME_SIZE {
+		userlib.DebugMsg("Ciphertext length", len(volume_encrypted.Ciphertext))
 		return nil, 0, errors.New(strings.ToTitle("Wrong ciphertext length"))
 	}
 
@@ -386,6 +388,13 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 		}
 	}
 
+	if pad_last != 0 {
+		for i := VOLUME_SIZE - pad_last; i < VOLUME_SIZE; i++ {
+			if volume[i] != byte(pad_last % 256) {
+				return nil, 0, errors.New(strings.ToTitle("Padding mismatch"))
+			}
+		}
+	}
 	return volume, pad_last, nil
 }
 
@@ -741,14 +750,17 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	}
 	// Combine volumes
 	n_volumes := len(volumes)
-	userlib.DebugMsg("volumes %v", volumes)
 	data_size := n_volumes * VOLUME_SIZE - int(pad_last)
 	packaged_data := make([]byte, data_size)
 	for i := 0; i <= n_volumes - 2; i++ {
 		index_starting := i * VOLUME_SIZE
 		copy(packaged_data[index_starting : index_starting + VOLUME_SIZE], volumes[i])
 	}
-	copy(packaged_data[(n_volumes - 1) * VOLUME_SIZE:], volumes[n_volumes - 1][:VOLUME_SIZE - pad_last])
+	if n_volumes >= 1 && VOLUME_SIZE >= pad_last {
+		copy(packaged_data[(n_volumes - 1) * VOLUME_SIZE:], volumes[n_volumes - 1][:VOLUME_SIZE - pad_last])
+	} else if VOLUME_SIZE < pad_last {
+		return nil, errors.New(strings.ToTitle("Padding longer than VOLUME_SIZE"))
+	}
 
 	err = json.Unmarshal(packaged_data, &data)
 	if err != nil {
