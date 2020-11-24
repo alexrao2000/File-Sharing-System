@@ -827,6 +827,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	const VOLUME_SIZE = 1048576 // 2^20 bytes
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
+	// userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
 
 	// Initialize direct recipients
 	var recipients []string
@@ -919,6 +920,10 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 func (userdata *User) ShareFile(filename string, recipient string) (
 	magic_string string, err error) {
 	const k_password_len uint32 = 16
+
+	//Add recipient to direct recipients
+	d_r := userdata.Direct_recipients[filename]
+	userdata.Direct_recipients[filename] = append(d_r, recipient)
 
 	//Retrieve k_file
 	ID_k := userdata.AES_key_storage_keys[filename]
@@ -1045,7 +1050,7 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 	//Check if user owns file
 	direct_recipients, exists := userdata.Direct_recipients[filename]
 	if !exists {
-		return errors.New(strings.ToTitle("User does not own file!")) 
+		return errors.New(strings.ToTitle("User does not own file!"))
 	}
 
 	//Encrypt and Authenticate plaintext
@@ -1069,7 +1074,7 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 			if err != nil {
 				return err
 			}
-		}	
+		}
 	}
 
 	return nil
