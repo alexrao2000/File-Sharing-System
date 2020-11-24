@@ -681,6 +681,11 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 func (userdata *User) ReceiveFile(filename string, sender string,
 	magic_string string) error {
 
+	//Check if filename exists already
+	if _, ok := userdata.AES_key_storage_keys[filename]; ok {
+    	return errors.New(strings.ToTitle("File with that name already exists!"))
+	}
+
 	//Retrieve keys
 	_, k_DSkey := StorageKeysPublicKey(sender)
 	k_DS_pub, ok := userlib.KeystoreGet(k_DSkey)
@@ -711,9 +716,6 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 		return err
 	}
 
-	if _, ok := userdata.AES_key_storage_keys[filename]; ok {
-    	return errors.New(strings.ToTitle("File with that name already exists!"))
-	}
 	userdata.AES_key_storage_keys[filename] = ID_k
 	/*
 	//Add new file to map
