@@ -653,19 +653,44 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 
 	//Retrieve keys
 	_, k_DSkey := StorageKeysPublicKey(sender)
-	k_DS_pub, err := KeystoreGet(k_DSkey)
-	if err != nil {
-		return err
+	k_DS_pub, ok := userlib.KeystoreGet(k_DSkey)
+	if !ok {
+		return errors.New(strings.ToTitle("File not received!"))
 	}
 	k_private := userdata.K_private
 
 	//Verify and Decrypt
-	signed_ID_k := []byte(magic_string)
-	userlib.DSVerify(k_DS_pub, signed_ID_k)
+	var token SignedKey
+	var ID_k uuid.UUID
+
+	bytes_token := []byte(magic_string)
+	err := json.Unmarshal(bytes_token, token)
+	if err != nil {
+		return err
+	}
+	err = userlib.DSVerify(k_DS_pub, token.PKE_k_file, token.DS_k_file)
+	if err != nil {
+		return err
+	}
+	bytes_ID_k, err := userlib.PKEDec(k_private, token.PKE_k_file)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(bytes_ID_k, ID_k)
+	if err != nil {
+		return err
+	}
 
 	//Add new file to map
+	k_file, err := GetAESKeys(ID_k, userdata)
+	if err != nil {
+		return err
+	}
 
-	return nil
+	StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
+
+
+	return err
 }
 
 // Removes target user's access.
