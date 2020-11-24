@@ -644,7 +644,19 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 func (userdata *User) ReceiveFile(filename string, sender string,
 	magic_string string) error {
 
+	//Retrieve keys
 	_, k_DSkey := StorageKeysPublicKey(sender)
+	k_DS_pub, err := KeystoreGet(k_DSkey)
+	if err != nil {
+		return err
+	}
+	k_private := userdata.K_private
+
+	//Verify and Decrypt
+	signed_ID_k := []byte(magic_string)
+	userlib.DSVerify(k_DS_pub, signed_ID_k)
+
+	//Add new file to map
 
 	return nil
 }
