@@ -338,7 +338,6 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 
 	// Check length
 	if len(volume_encrypted.Ciphertext) != ENCRYPTED_VOLUME_SIZE {
-		userlib.DebugMsg("Ciphertext length", len(volume_encrypted.Ciphertext))
 		return nil, 0, errors.New(strings.ToTitle("Wrong ciphertext length"))
 	}
 
