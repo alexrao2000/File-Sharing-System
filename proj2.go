@@ -273,11 +273,11 @@ func StoreAESKeys(ID_k uuid.UUID, k_file []byte, userdata *User, recipient strin
 
 	//Obtain user's sign key and recipient's public key
 	k_pubkey, _ := StorageKeysPublicKey(recipient)
-	k_DS_private := userdata.K_DS_private
 	k_pub, ok := userlib.KeystoreGet(k_pubkey)
 	if !ok {
 		return errors.New(strings.ToTitle("k_pub not found in Keystore!"))
 	}
+	k_DS_private := userdata.K_DS_private
 
 	//Sign and Encrypt
 	enc_k_file, err := userlib.PKEEnc(k_pub, k_file)
@@ -561,9 +561,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 // metadata you need.
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	// Find UUID of keys
-	ID_k := userdata.AES_key_storage_keys[filename]
 	// index_k = userdata.AES_key_indices[filename]
-	userlib.DatastoreSet(ID_k, append(ds_k_file, pke_k_file))
 	// ID_k := userdata.AES_key_storage_keys[filename]
 	// userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
 	return
@@ -605,21 +603,38 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	ID_k := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, userdata)
 	if err != nil {
-		return nil, errors.New(strings.ToTitle("File not found!"))
+		return "", errors.New(strings.ToTitle("File not found!"))
 	}
 
-	//Retrieve SignedKey map
-	
+	//Retrieve k_pub
+	k_pubkey, _ := StorageKeysPublicKey(recipient)
+	k_pub, ok := userlib.KeystoreGet(k_pubkey)
+	if !ok {
+		return "", errors.New(strings.ToTitle("k_pub not found in Keystore!"))
+	}
+	k_DS_private := userdata.K_DS_private
 
 	//Create SignedKey
 	StoreAESKeys(ID_k, k_file, userdata, recipient)
 
 	//Generate token
-	iv = userlib.RandomBytes(userlib.AESBlockSize)
-	enc_ID_k = userlib.SymEnc(k_pub, iv, ID_k)
-	magic_string = userlib.DSSign(k_DSkey, enc_ID_k)
+	bytes_ID_k, err := json.Marshal(ID_k)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return
+	}
+	enc_ID_k, err := userlib.PKEEnc(k_pub, bytes_ID_k)
+	if err != nil {
+		return "", errors.New(strings.ToTitle("File not found!"))
+	}
+	signed_ID_k, err := userlib.DSSign(k_DS_private, enc_ID_k)
+	if err != nil {
+		return "", errors.New(strings.ToTitle("File not found!"))
+	}
 
-	return
+	magic_string = hex.EncodeToString(signed_ID_k)
+
+	return magic_string, err
 }
 
 // Note recipient's filename can be different from the sender's filename.
