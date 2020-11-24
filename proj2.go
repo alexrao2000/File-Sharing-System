@@ -232,6 +232,77 @@ func HandlePanics()  {
 	}
 }
 
+func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
+
+	m_keys, ok := userlib.DatastoreGet(ID_k)
+	if !ok {
+		return nil, errors.New(strings.ToTitle("File not found!"))
+	}
+
+	signed_keys := make(map[string]SignedKey)
+	json.Unmarshal(m_keys, signed_keys)
+	signed_key := signed_keys[userdata.Username]
+
+	_, k_DSkey := StorageKeysPublicKey(userdata.Username)
+	k_DS_pub, ok := userlib.KeystoreGet(k_DSkey)
+	if !ok {
+		return nil, errors.New(strings.ToTitle("No DS key found!"))
+	}
+	err := userlib.DSVerify(k_DS_pub, signed_key.PKE_k_file, signed_key.DS_k_file)
+	if err != nil {
+		return nil, err
+	}
+
+	pke_k_file := signed_key.PKE_k_file
+	k_file_front_padded, err := userlib.PKEDec(userdata.K_private, pke_k_file)
+	if err != nil {
+		return nil, err
+	}
+
+	k_file := k_file_front_padded[16:]
+	return k_file, nil
+
+}
+
+func StoreAESKeys(ID_k uuid.UUID, k_file []byte, userdata *User, recipient string) error {
+
+	m_keys, ok := userlib.DatastoreGet(ID_k)
+	if !ok {
+		return errors.New(strings.ToTitle("No marshalled keys found!"))
+	}
+
+	//Obtain user's sign key and recipient's public key
+	k_pubkey, _ := StorageKeysPublicKey(recipient)
+	k_pub, ok := userlib.KeystoreGet(k_pubkey)
+	if !ok {
+		return errors.New(strings.ToTitle("k_pub not found in Keystore!"))
+	}
+	k_DS_private := userdata.K_DS_private
+
+	//Sign and Encrypt
+	enc_k_file, err := userlib.PKEEnc(k_pub, k_file)
+	if err != nil {
+		return err
+	}
+	signed_k_file, err := userlib.DSSign(k_DS_private, enc_k_file)
+	if err != nil {
+		return err
+	}
+
+	//Create SignedKey
+	var signed_key SignedKey
+	signed_key.PKE_k_file = enc_k_file
+	signed_key.DS_k_file = signed_k_file
+	signed_keys := make(map[string]SignedKey)
+	json.Unmarshal(m_keys, signed_keys)
+	signed_keys[recipient] = signed_key //recipient or userdata?
+	m_keys, _ = json.Marshal(signed_keys)
+	userlib.DatastoreSet(ID_k, m_keys)
+
+	return err
+
+}
+
 // This creates a user.  It will only be called once for a user
 // (unless the keystore and datastore are cleared during testing purposes)
 
@@ -490,6 +561,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 // metadata you need.
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	// Find UUID of keys
+	// index_k = userdata.AES_key_indices[filename]
 	// ID_k := userdata.AES_key_storage_keys[filename]
 	// userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
 	return
@@ -525,8 +597,54 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 // should be able to know the sender.
 func (userdata *User) ShareFile(filename string, recipient string) (
 	magic_string string, err error) {
+	const k_password_len uint32 = 16
 
-	return
+	//Retrieve k_file
+	ID_k := userdata.AES_key_storage_keys[filename]
+	k_file, err := GetAESKeys(ID_k, userdata)
+	if err != nil {
+		return "", errors.New(strings.ToTitle("File not found!"))
+	}
+
+	//Retrieve k_pub
+	k_pubkey, _ := StorageKeysPublicKey(recipient)
+	k_pub, ok := userlib.KeystoreGet(k_pubkey)
+	if !ok {
+		return "", errors.New(strings.ToTitle("k_pub not found in Keystore!"))
+	}
+	k_DS_private := userdata.K_DS_private
+
+	//Create SignedKey
+	StoreAESKeys(ID_k, k_file, userdata, recipient)
+	
+	// Update recipient list AFTER CHECKING WHETHER THE USER OWNS THE FILE ALREADY (i.e. has the filename in their direct recipient map, which should ONLY BE CALLED IN STOREFILE)
+// 	StoreUser(userdata, userdata.K_password)
+
+	//Generate token
+	bytes_ID_k, err := json.Marshal(ID_k)
+	if err != nil {
+		return "", err
+	}
+	enc_ID_k, err := userlib.PKEEnc(k_pub, bytes_ID_k)
+	if err != nil {
+		return "", errors.New(strings.ToTitle("File not found!"))
+	}
+	signed_ID_k, err := userlib.DSSign(k_DS_private, enc_ID_k)
+	if err != nil {
+		return "", errors.New(strings.ToTitle("File not found!"))
+	}
+
+	var token SignedKey
+	token.PKE_k_file = enc_ID_k
+	token.DS_k_file = signed_ID_k
+	bytes_token, err := json.Marshal(token)
+	if err != nil {
+		return "", err
+	}
+
+	magic_string = hex.EncodeToString(bytes_token)
+
+	return magic_string, nil
 }
 
 // Note recipient's filename can be different from the sender's filename.
@@ -535,6 +653,9 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 // it is authentically from the sender.
 func (userdata *User) ReceiveFile(filename string, sender string,
 	magic_string string) error {
+
+	StorageKeysPublicKey(sender)
+
 	return nil
 }
 
