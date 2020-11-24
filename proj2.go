@@ -933,6 +933,10 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	magic_string string, err error) {
 	const k_password_len uint32 = 16
 
+	//Add recipient to direct recipients
+	d_r := userdata.Direct_recipients[filename]
+	userdata.Direct_recipients[filename] = append(d_r, recipient)
+
 	//Retrieve k_file
 	ID_k := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, filename, userdata)
