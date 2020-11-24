@@ -711,10 +711,10 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 		return err
 	}
 
-	if userdata.AES_key_storage_keys[filename] != ID_k {
-		userdata.AES_key_storage_keys[filename] = ID_k
+	if _, ok := userdata.AES_key_storage_keys[filename]; ok {
+    	return errors.New(strings.ToTitle("File with that name already exists!"))
 	}
-
+	userdata.AES_key_storage_keys[filename] = ID_k
 	/*
 	//Add new file to map
 	k_file, err := GetAESKeys(ID_k, userdata)
