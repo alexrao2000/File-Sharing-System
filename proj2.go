@@ -298,7 +298,6 @@ func bytesEqual(a, b []byte) bool {
 }
 */
 
-<<<<<<< HEAD
 // Encrypt, authenticate, & store segmented VOLUMES
 // w/ key K_FILE & USERDATA's credentials
 func StoreVolumes(volumes [][]byte, volumes_encrypted []Volume, filename string, userdata *User, k_file []byte) (err error) {
@@ -584,22 +583,10 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 
 	// Decrypt
 	salt_volume_encryption := []byte("volume_encryption" + index_string)
-=======
-func EncryptAndMACVolume(volume []byte, index int, k_file []byte) (encrypted_volume Volume, err error) {
-	const k_password_len uint32 = 16
-
-	// Encrypt
-	iv := userlib.RandomBytes(userlib.AESBlockSize)
-	index_string := strconv.Itoa(index)
-	salt_volume_encryption := []byte("volume_encryption" + index_string)
-	salt_volume_authentication := []byte("volume_authentication" + index_string)
-	var volume_encrypted Volume
->>>>>>> formatting changes
 	k_volume, err := userlib.HashKDF(k_file,
 		salt_volume_encryption)
 	if err != nil {
 		userlib.DebugMsg("%v", err)
-<<<<<<< HEAD
 		return nil, 0, err
 	}
 	k_volume = k_volume[:k_password_len]
@@ -685,20 +672,10 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 
 	// Verify
 	salt_volume_authentication := []byte("volume_authentication" + index_string)
-=======
-		return volume_encrypted, err
-	}
-	k_volume = k_volume[:k_password_len]
-	defer HandlePanics()
-	volume_encrypted.Ciphertext = userlib.SymEnc(k_volume, iv, volume)
-
-	// Authentication
->>>>>>> formatting changes
 	k_volume_MAC, err := userlib.HashKDF(k_file,
 		salt_volume_authentication)
 	if err != nil {
 		userlib.DebugMsg("%v", err)
-<<<<<<< HEAD
 		return nil, 0, err
 	}
 	k_volume_MAC = k_volume_MAC[:k_password_len]
@@ -724,18 +701,6 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 	volume := userlib.SymDec(k_volume, volume_encrypted.Ciphertext)
 
 	return volume, pad_last, nil
-=======
-		return volume_encrypted, err
-	}
-	k_volume_MAC = k_volume_MAC[:k_password_len]
-	volume_encrypted.MAC, err = userlib.HMACEval(k_volume_MAC, volume_encrypted.Ciphertext)
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return volume_encrypted, err
-	}
-
-	return volume_encrypted, nil
->>>>>>> formatting changes
 }
 
 // This handles panics and should print the error
@@ -971,11 +936,6 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	const VOLUME_SIZE = 1048576 // 2^20 bytes
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
-<<<<<<< HEAD
-=======
-	// userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
-
->>>>>>> formatting changes
 	// Initialize direct recipients
 	var recipients []string
 	userdata.Direct_recipients[filename] = recipients
@@ -990,65 +950,11 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	// Encrypt & authenticate
 	k_file := userlib.RandomBytes(int(k_password_len))
 	// var k_volume [k_password_len]byte
-<<<<<<< HEAD
 	err := StoreVolumes(volumes[:], volumes_encrypted[:], filename, userdata, k_file)
-=======
-	for index, volume := range volumes {
-		volume_encrypted, err := EncryptAndMACVolume(volume, index, k_file)
-		if err != nil {
-			userlib.DebugMsg("%v", err)
-			return
-		}
-		volumes_encrypted[index] = volume_encrypted
-	}
-	// Fetch public keys
-	k_pubkey, _ := StorageKeysPublicKey(userdata.Username)
-	k_pub, ok := userlib.KeystoreGet(k_pubkey)
-	if !ok {
-		userlib.DebugMsg("%v", errors.New(strings.ToTitle("Public key fetch failed")))
-		return
-	}
-
-	// Store data
-	ID_k := uuid.New()
-	stored, _ := json.Marshal(volumes_encrypted)
-	hash_ID_k := userlib.Hash([]byte(ID_k.String()))
-	ID_file, err := uuid.FromBytes(hash_ID_k[:16])
 	if err != nil {
 		userlib.DebugMsg("%v", err)
 		return
 	}
-	userlib.DatastoreSet(ID_file, stored)
-
-	// PKE & Publish AES key
-	k_file_front_padded := make([]byte, k_password_len * 2)
-	copy(k_file_front_padded[:k_password_len], userlib.RandomBytes(int(k_password_len)))
-	copy(k_file_front_padded[k_password_len:], k_file)
-	pke_k_file, err := userlib.PKEEnc(k_pub, k_file_front_padded)
->>>>>>> formatting changes
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return
-	}
-<<<<<<< HEAD
-=======
-	ds_k_file, err := userlib.DSSign(userdata.K_DS_private, pke_k_file)
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return
-	}
-	userdata.AES_key_storage_keys[filename] = ID_k
-	// userdata.AES_key_indices[filename] = 0
-	var signed_key SignedKey
-	signed_key.PKE_k_file = pke_k_file
-	signed_key.DS_k_file = ds_k_file
-	signed_keys := make(map[string]SignedKey)
-	signed_keys[userdata.Username] = signed_key
-	StoreUser(userdata, userdata.K_password)
-	signed_keys_marshal, _ := json.Marshal(signed_keys)
-	userlib.DatastoreSet(ID_k, signed_keys_marshal)
-
->>>>>>> formatting changes
 	return
 }
 
@@ -1158,7 +1064,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 		return "", err
 	}
 
-	//Add recipient to direct recipients
+	//Add recipient to direct recipients if user owns file
 	direct_recipients, exists := userdata.Direct_recipients[filename]
 	if exists {
 		userdata.Direct_recipients[filename] = append(direct_recipients, recipient)
@@ -1228,7 +1134,6 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 func (userdata *User) RevokeFile(filename string, target_username string) (err error) {
 	const k_password_len uint32 = 16
 
-<<<<<<< HEAD
 	//Check if user owns file
 	direct_recipients, exists := userdata.Direct_recipients[filename]
 	if !exists {
@@ -1237,9 +1142,6 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 
 	//Encrypt and Authenticate plaintext
 	k_file := userlib.RandomBytes(int(k_password_len))
-=======
-	//k_file := userlib.RandomBytes(int(k_password_len))
->>>>>>> formatting changes
 
 	volumes, err := LoadVolumes(userdata, filename)
 	if err != nil {
@@ -1261,6 +1163,5 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 			}
 		}
 	}
-
 	return nil
 }
