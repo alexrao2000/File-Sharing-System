@@ -868,7 +868,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 		return "", err
 	}
 
-	//Add recipient to direct recipients
+	//Add recipient to direct recipients if user owns file
 	direct_recipients, exists := userdata.Direct_recipients[filename]
 	if exists {
 		userdata.Direct_recipients[filename] = append(direct_recipients, recipient)
@@ -947,7 +947,25 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 func (userdata *User) RevokeFile(filename string, target_username string) (err error) {
 	const k_password_len uint32 = 16
 
-	//k_file := userlib.RandomBytes(int(k_password_len))
+	//Check if user owns file
+	direct_recipients, exists := userdata.Direct_recipients[filename]
+	if !exists {
+		return errors.New(strings.ToTitle("User does not own file!")) 
+	}
 
-	return
+	//Encrypt and Authenticate plaintext
+	k_file := userlib.RandomBytes(int(k_password_len))
+	for index, volume := range volumes {
+		volume_encrypted, err := EncryptAndMACVolume(volume, index, k_file)
+		if err != nil {
+			userlib.DebugMsg("%v", err)
+			return
+		}
+		volumes_encrypted[index] = volume_encrypted
+	}
+
+	//Encrypt k_file
+	StoreAESKeys(ID_k, k_file, userdata, target_username)
+
+	return nil
 }
