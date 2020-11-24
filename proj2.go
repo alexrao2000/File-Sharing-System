@@ -644,7 +644,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 func (userdata *User) ReceiveFile(filename string, sender string,
 	magic_string string) error {
 
-	StorageKeysPublicKey(sender)
+	_, k_DSkey := StorageKeysPublicKey(sender)
 
 	return nil
 }
