@@ -196,6 +196,7 @@ func TestShare(t *testing.T) {
 		return
 	}
 
+	//Revoke tests
 	err = u1.RevokeFile("file1", "bob")
 	if err != nil {
 		t.Error("Failed to revoke file", err)
