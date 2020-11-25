@@ -1056,7 +1056,7 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 		return err
 	}
 
-	//StoreVolumes(volumes)
+	StoreVolumes(volumes, k_file)
 
 	//Encrypt k_file
 	err := StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
