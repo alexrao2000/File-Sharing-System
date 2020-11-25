@@ -295,8 +295,9 @@ func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last ui
 	// Get AES keys
 	ID_k, exists := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, userdata)
+	userlib.DebugMsg("k_file Exists %v", k_file)
 	if err != nil || !exists {
-		userlib.DebugMsg("%v", err)
+		userlib.DebugMsg("%v", k_file)
 		return nil, 0, err
 	}
 
@@ -337,6 +338,7 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 
 	// Check length
 	if len(volume_encrypted.Ciphertext) != ENCRYPTED_VOLUME_SIZE {
+		userlib.DebugMsg("Ciphertext length", len(volume_encrypted.Ciphertext))
 		return nil, 0, errors.New(strings.ToTitle("Wrong ciphertext length"))
 	}
 
@@ -659,6 +661,9 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE) //FIXME
 	volumes_encrypted[n_volumes - 1].N_pad = uint32(VOLUME_SIZE - remainder_data_size)
 	volumes[n_volumes - 1] = last_volume
+	// userlib.DebugMsg("Packaged %v", packaged_data)
+	// userlib.DebugMsg("Volumes %v", volumes)
+
 	// Encrypt & authenticate
 	k_file := userlib.RandomBytes(int(k_password_len))
 	// var k_volume [k_password_len]byte
