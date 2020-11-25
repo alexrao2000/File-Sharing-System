@@ -287,12 +287,12 @@ func EncryptAndMACVolume(volume []byte, index int, k_file []byte) (encrypted_vol
 }
 
 // Load, verify, & decrypt volumes of FILENAME with USERDATA's credentials
-func LoadVolumes(userdata *User, filename string) (volumes [][]byte, err error) {
+func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last uint32, err error) {
 	// Get AES keys
 	ID_k := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, userdata)
 	if err != nil {
-		return nil, errors.New(strings.ToTitle("File not found!"))
+		return nil, 0, errors.New(strings.ToTitle("File not found!"))
 	}
 
 	// Get ciphertext
@@ -304,28 +304,27 @@ func LoadVolumes(userdata *User, filename string) (volumes [][]byte, err error) 
 	}
 	stored, ok := userlib.DatastoreGet(ID_file)
 	if !ok {
-		return nil, errors.New(strings.ToTitle("File not found!"))
+		return nil, 0, errors.New(strings.ToTitle("File not found!"))
 	}
 	var volumes_encrypted []Volume
 	json.Unmarshal(stored, &volumes_encrypted)
 
 	// Verify & decrypt
 	n_volumes := len(volumes_encrypted)
-	var pad_last uint32
 	for index, volume_encrypted := range volumes_encrypted {
 		volumes[index], pad_last, err = VerifyAndDecryptVolume(volume_encrypted, index, n_volumes, k_file)
 		// pad_last is finalised in last iteration
 		if err != nil {
 			userlib.DebugMsg("%v", err)
-			return nil, err
+			return nil, 0, err
 		}
 	}
-	return volumes, nil
+	return volumes, pad_last, nil
 }
 
 /* Verify and Decrypt VOLUME_ENCRYPTED at INDEX in the volume array
  that is N_VOLUMES long with key K_FILE */
-func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k_file []byte) (volumes [][]byte, pad_last uint32, err error) {
+func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k_file []byte) (volume []byte, pad_last uint32, err error) {
 	const VOLUME_SIZE = 1048576 // 2^20 bytes
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
@@ -373,7 +372,15 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 	}
 	k_volume = k_volume[:k_password_len]
 	defer HandlePanics()
-	volume := userlib.SymDec(k_volume, volume_encrypted.Ciphertext)
+	volume = userlib.SymDec(k_volume, volume_encrypted.Ciphertext)
+
+	if pad_last != 0 {
+		for i := VOLUME_SIZE - pad_last; i < VOLUME_SIZE; i++ {
+			if volume[i] != byte(pad_last % 256) {
+				return nil, 0, errors.New(strings.ToTitle("Padding mismatch"))
+			}
+		}
+	}
 
 	return volume, pad_last, nil
 }
@@ -719,13 +726,24 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
 
-	volumes, err := LoadVolumes(userdata, filename)
+	volumes, pad_last, err := LoadVolumes(userdata, filename)
 	// Combine volumes
+	n_volumes := len(volumes)
+	userlib.DebugMsg("n_volumes %v", n_volumes)
+	data_size := n_volumes * VOLUME_SIZE - int(pad_last)
+	packaged_data := make([]byte, data_size)
+	for i := 0; i <= n_volumes - 2; i++ {
+		index_starting := i * VOLUME_SIZE
+		copy(packaged_data[index_starting : index_starting + VOLUME_SIZE], volumes[i])
+	}
+	copy(packaged_data[(n_volumes - 1) * VOLUME_SIZE:], volumes[n_volumes - 1][:VOLUME_SIZE - pad_last])
 
-	return volumes[0], nil
-	//End of toy implementation
-
-	return
+	err = json.Unmarshal(packaged_data, &data)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return nil, err
+	}
+	return data, nil
 }
 
 // This creates a sharing record, which is a key pointing to something
