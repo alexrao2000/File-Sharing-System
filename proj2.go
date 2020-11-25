@@ -1027,12 +1027,15 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 		return err
 	}
 
-	StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
+	err := StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
+	if err != nil {
+		return err
+	}
 	*/
 
 	StoreUser(userdata, userdata.K_password)
 
-	return err
+	return nil
 }
 
 // Removes target user's access.
@@ -1053,7 +1056,7 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 		return err
 	}
 
-	//StoreVolumes()
+	//StoreVolumes(volumes)
 
 	//Encrypt k_file
 	err := StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
@@ -1061,10 +1064,12 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 		return err
 	}
 	for index, recipient := range userdata.Direct_recipients {
-		err := StoreAESKeys(ID_k, k_file, userdata, recipient)
-		if err != nil {
-			return err
-		}
+		if recipient != target_username {
+			err := StoreAESKeys(ID_k, k_file, userdata, recipient)
+			if err != nil {
+				return err
+			}
+		}	
 	}
 
 	return nil
