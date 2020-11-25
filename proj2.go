@@ -289,114 +289,7 @@ func EncryptAndMACVolume(volume []byte, index int, k_file []byte) (encrypted_vol
 	return volume_encrypted, nil
 }
 
-// Load, verify, & decrypt volumes of FILENAME with USERDATA's credentials
-func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last uint32, err error) {
-	// Get AES keys
-	ID_k, exists := userdata.AES_key_storage_keys[filename]
-	k_file, err := GetAESKeys(ID_k, userdata)
-	if err != nil || !exists {
-		userlib.DebugMsg("k_file %v", k_file)
-		return nil, 0, err
-	}
 
-	// Get ciphertext
-	hash_ID_k := userlib.Hash([]byte(ID_k.String()))
-	ID_file, err := uuid.FromBytes(hash_ID_k[:16])
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return
-	}
-	stored, ok := userlib.DatastoreGet(ID_file)
-	if !ok {
-		return nil, 0, errors.New(strings.ToTitle("File not found!"))
-	}
-	var volumes_encrypted []Volume
-	json.Unmarshal(stored, &volumes_encrypted)
-
-	// Verify & decrypt
-	n_volumes := len(volumes_encrypted)
-	volumes = make([][]byte, n_volumes)
-	for index, volume_encrypted := range volumes_encrypted {
-		volumes[index], pad_last, err = VerifyAndDecryptVolume(volume_encrypted, index, n_volumes, k_file)
-		// pad_last is finalised in last iteration
-		if err != nil {
-			userlib.DebugMsg("%v", err)
-			return nil, 0, err
-		}
-	}
-	return volumes, pad_last, nil
-}
-
-/* Verify and Decrypt VOLUME_ENCRYPTED at INDEX in the volume array
- that is N_VOLUMES long with key K_FILE */
-func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k_file []byte) (volume []byte, pad_last uint32, err error) {
-	const VOLUME_SIZE = 1048576 // 2^20 bytes
-	const k_password_len uint32 = 16
-	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
-
-	// Check length
-	if len(volume_encrypted.Ciphertext) != ENCRYPTED_VOLUME_SIZE {
-		userlib.DebugMsg("Ciphertext length", len(volume_encrypted.Ciphertext))
-		return nil, 0, errors.New(strings.ToTitle("Wrong ciphertext length"))
-	}
-
-	// Check padding
-	pad_last = 0
-	if index == n_volumes - 1 {
-		pad_last = volume_encrypted.N_pad
-	} else if volume_encrypted.N_pad != 0 {
-		return nil, 0, errors.New(strings.ToTitle("Non-last volume has non-zero padding"))
-	}
-
-	index_string := strconv.Itoa(index)
-
-	// Verify
-	salt_volume_authentication := []byte("volume_authentication" + index_string)
-	k_volume_MAC, err := userlib.HashKDF(k_file,
-		salt_volume_authentication)
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return nil, 0, err
-	}
-	k_volume_MAC = k_volume_MAC[:k_password_len]
-	MAC, err := userlib.HMACEval(k_volume_MAC, volume_encrypted.Ciphertext)
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return nil, 0, err
-	}
-	if !userlib.HMACEqual(volume_encrypted.MAC, MAC){
-		return nil, 0, errors.New(strings.ToTitle("Verification failed"))
-	}
-
-	// Decrypt
-	salt_volume_encryption := []byte("volume_encryption" + index_string)
-	k_volume, err := userlib.HashKDF(k_file,
-		salt_volume_encryption)
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return nil, 0, err
-	}
-	k_volume = k_volume[:k_password_len]
-	defer HandlePanics()
-	volume = userlib.SymDec(k_volume, volume_encrypted.Ciphertext)
-
-	if pad_last != 0 {
-		for i := VOLUME_SIZE - pad_last; i < VOLUME_SIZE; i++ {
-			if volume[i] != byte(pad_last % 256) {
-				return nil, 0, errors.New(strings.ToTitle("Padding mismatch"))
-			}
-		}
-	}
-
-	if pad_last != 0 {
-		for i := VOLUME_SIZE - pad_last; i < VOLUME_SIZE; i++ {
-			if volume[i] != byte(pad_last % 256) {
-				return nil, 0, errors.New(strings.ToTitle("Padding mismatch"))
-			}
-		}
-	}
-	return volume, pad_last, nil
-}
 
 // This handles panics and should print the error
 func HandlePanics()  {
@@ -738,35 +631,7 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 //
 // It should give an error if the file is corrupted in any way.
 func (userdata *User) LoadFile(filename string) (data []byte, err error) {
-	// Parameters
-	const VOLUME_SIZE = 1048576 // 2^20 bytes
-	const k_password_len uint32 = 16
-	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
 
-	volumes, pad_last, err := LoadVolumes(userdata, filename)
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return nil, err
-	}
-	// Combine volumes
-	n_volumes := len(volumes)
-	data_size := n_volumes * VOLUME_SIZE - int(pad_last)
-	packaged_data := make([]byte, data_size)
-	for i := 0; i <= n_volumes - 2; i++ {
-		index_starting := i * VOLUME_SIZE
-		copy(packaged_data[index_starting : index_starting + VOLUME_SIZE], volumes[i])
-	}
-	if n_volumes >= 1 && VOLUME_SIZE >= pad_last {
-		copy(packaged_data[(n_volumes - 1) * VOLUME_SIZE:], volumes[n_volumes - 1][:VOLUME_SIZE - pad_last])
-	} else if VOLUME_SIZE < pad_last {
-		return nil, errors.New(strings.ToTitle("Padding longer than VOLUME_SIZE"))
-	}
-
-	err = json.Unmarshal(packaged_data, &data)
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return nil, err
-	}
 	return data, nil
 }
 
