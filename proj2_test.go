@@ -53,22 +53,34 @@ func TestInit(t *testing.T) {
 
 func TestStorage(t *testing.T) {
 	clear()
-	u, err := InitUser("alice", "fubar")
+	u1, err := InitUser("alice", "fubar")
 	if err != nil {
 		t.Error("Failed to initialize user", err)
 		return
 	}
 
 	v := []byte("This is a test")
-	u.StoreFile("file1", v)
+	u1.StoreFile("file1", v)
 
-	v2, err2 := u.LoadFile("file1")
+	v2, err2 := u1.LoadFile("file1")
 	if err2 != nil {
 		t.Error("Failed to upload and download", err2)
 		return
 	}
 	if !reflect.DeepEqual(v, v2) {
 		t.Error("Downloaded file is not the same", v, v2)
+		return
+	}
+
+	//Custom tests
+	u2, err := InitUser("bob", "rabuf")
+	if err != nil {
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	_, err3 := u2.LoadFile("file1")
+	if err3 == nil {
+		t.Log("User loaded file to which they do not have access")
 		return
 	}
 }
@@ -88,10 +100,27 @@ func TestInvalidFile(t *testing.T) {
 	}
 }
 
+func TestAppend(t *testing.T) {
+	clear()
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed to initialize user", err)
+		return
+	}
+
+	v := []byte("This is a test")
+	u.StoreFile("file1", v)
+
+	err = u.AppendFile("file1", []byte("Append this string"))
+	if err != nil {
+		t.Error("Failed to append to file", err)
+		return
+	}
+}
 
 func TestShare(t *testing.T) {
 	clear()
-	u, err := InitUser("alice", "fubar")
+	u1, err := InitUser("alice", "fubar")
 	if err != nil {
 		t.Error("Failed to initialize user", err)
 		return
@@ -101,20 +130,25 @@ func TestShare(t *testing.T) {
 		t.Error("Failed to initialize bob", err2)
 		return
 	}
+	u3, err3 := InitUser("carl", "rabuf")
+	if err3 != nil {
+		t.Error("Failed to initialize bob", err3)
+		return
+	}
 
 	v := []byte("This is a test")
-	u.StoreFile("file1", v)
+	u1.StoreFile("file1", v)
 	
 	var v2 []byte
 	var magic_string string
 
-	v, err = u.LoadFile("file1")
+	v, err = u1.LoadFile("file1")
 	if err != nil {
 		t.Error("Failed to download the file from alice", err)
 		return
 	}
 
-	magic_string, err = u.ShareFile("file1", "bob")
+	magic_string, err = u1.ShareFile("file1", "bob")
 	if err != nil {
 		t.Error("Failed to share the a file", err)
 		return
@@ -132,6 +166,27 @@ func TestShare(t *testing.T) {
 	}
 	if !reflect.DeepEqual(v, v2) {
 		t.Error("Shared file is not the same", v, v2)
+		return
+	}
+
+	//Custom tests
+	magic_string, err = u2.ShareFile("file1", "carl")
+	if err != nil {
+		t.Error("User is not the owner of file", err)
+		return
+	}
+
+	v = []byte("This is a test")
+	u3.StoreFile("file2", v)
+
+	magic_string, err = u1.ShareFile("file1", "carl")
+	if err != nil {
+		t.Error("Failed to share the a file", err)
+		return
+	}
+	err = u3.ReceiveFile("file2", "alice", magic_string)
+	if err != nil {
+		t.Error("File with the same name already exists: ", err)
 		return
 	}
 
