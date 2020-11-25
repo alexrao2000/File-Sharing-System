@@ -91,6 +91,7 @@ type User struct {
 	AES_key_storage_keys map[string]uuid.UUID
 	//AES_key_shared_keys map[string]uuid.UUID
 	Direct_recipients map[string][]string
+	Sharers map[string]string
 
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
@@ -374,9 +375,9 @@ func EncryptAndMACVolume(volume []byte, volume_encrypted_ptr *Volume, index int,
 // Load, verify, & decrypt volumes of FILENAME with USERDATA's credentials
 func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last uint32, err error) {
 	// Get AES keys
-	ID_k, exists := userdata.AES_key_storage_keys[filename]
-	k_file, err := GetAESKeys(ID_k, userdata)
-	if err != nil || !exists {
+	ID_k, exists_key := userdata.AES_key_storage_keys[filename]
+	k_file, err := GetAESKeys(ID_k, filename, userdata)
+	if err != nil || !exists_key {
 		// userlib.DebugMsg("k_file %v", k_file)
 		return nil, 0, err
 	}
@@ -488,7 +489,7 @@ func HandlePanics()  {
 }
 
 // GET AES keys from Datastore at ID_K with USERDATA's credentials
-func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
+func GetAESKeys(ID_k uuid.UUID, filename string, userdata *User) ([]byte, error) {
 
 	m_keys, ok := userlib.DatastoreGet(ID_k)
 	if !ok {
@@ -500,7 +501,14 @@ func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
 	// userlib.DebugMsg("signed_keys", signed_keys)
 	signed_key := signed_keys[userdata.Username]
 
-	_, k_DSkey := StorageKeysPublicKey(userdata.Username)
+	sharer, exists := userdata.Sharers[filename]
+	var signer string
+	if exists {
+		signer = sharer
+	} else {
+		signer = userdata.Username
+	}
+	_, k_DSkey := StorageKeysPublicKey(signer)
 	k_DS_pub, ok := userlib.KeystoreGet(k_DSkey)
 	if !ok {
 		return nil, errors.New(strings.ToTitle("No DS key found!"))
@@ -520,6 +528,7 @@ func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
 		return nil, err
 	}
 
+	userlib.DebugMsg("k_file %v", k_file)
 	k_file := k_file_front_padded[16:]
 	return k_file, nil
 
@@ -607,6 +616,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	userdata.AES_key_storage_keys = make(map[string]uuid.UUID)
 	//userdata.AES_key_shared_keys = make(map[string]uuid.UUID)
 	userdata.Direct_recipients = make(map[string][]string)
+	userdata.Sharers = make(map[string]string)
 
 	//store public keys
 	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
@@ -794,7 +804,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 
 	//Retrieve k_file
 	ID_k := userdata.AES_key_storage_keys[filename]
-	k_file, err := GetAESKeys(ID_k, userdata)
+	k_file, err := GetAESKeys(ID_k, filename, userdata)
 	if err != nil {
 		return "", errors.New(strings.ToTitle("File not found!"))
 	}
@@ -891,6 +901,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	}
 
 	userdata.AES_key_storage_keys[filename] = ID_k
+	userdata.Sharers[filename] = sender
 	/*
 	//Add new file to map
 	k_file, err := GetAESKeys(ID_k, userdata)
