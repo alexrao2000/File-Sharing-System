@@ -289,10 +289,11 @@ func EncryptAndMACVolume(volume []byte, index int, k_file []byte) (encrypted_vol
 // Load, verify, & decrypt volumes of FILENAME with USERDATA's credentials
 func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last uint32, err error) {
 	// Get AES keys
-	ID_k := userdata.AES_key_storage_keys[filename]
+	ID_k, exists := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, userdata)
-	if err != nil {
-		return nil, 0, errors.New(strings.ToTitle("File not found!"))
+	if err != nil || !exists {
+		userlib.DebugMsg("%v", err)
+		return nil, 0, err
 	}
 
 	// Get ciphertext
@@ -388,7 +389,7 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 // This handles panics and should print the error
 func HandlePanics()  {
 	if recovery := recover(); recovery != nil {
-		userlib.DebugMsg("DO NOT PANIC:", recovery)
+		userlib.DebugMsg("DO NOT PANIC: %v", recovery)
 	}
 }
 
@@ -402,6 +403,7 @@ func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
 
 	signed_keys := make(map[string]SignedKey)
 	json.Unmarshal(m_keys, &signed_keys)
+	userlib.DebugMsg("signed_keys", signed_keys)
 	signed_key := signed_keys[userdata.Username]
 
 	_, k_DSkey := StorageKeysPublicKey(userdata.Username)
@@ -411,6 +413,9 @@ func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
 	}
 	err := userlib.DSVerify(k_DS_pub, signed_key.PKE_k_file, signed_key.DS_k_file)
 	if err != nil {
+		userlib.DebugMsg("k_DS_pub", k_DS_pub)
+		userlib.DebugMsg("signed_key.DS_k_file", len(signed_key.DS_k_file))
+		// userlib.DebugMsg("signed_key.PKE_k_file", len(signed_key.PKE_k_file))
 		return nil, err
 	}
 
@@ -727,9 +732,13 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
 
 	volumes, pad_last, err := LoadVolumes(userdata, filename)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return nil, err
+	}
 	// Combine volumes
 	n_volumes := len(volumes)
-	userlib.DebugMsg("n_volumes %v", n_volumes)
+	userlib.DebugMsg("volumes %v", volumes)
 	data_size := n_volumes * VOLUME_SIZE - int(pad_last)
 	packaged_data := make([]byte, data_size)
 	for i := 0; i <= n_volumes - 2; i++ {
