@@ -129,15 +129,11 @@ func StoreUser(userdataptr *User, k_password []byte) (err error) {
 	const k_password_len uint32 = 16
 	// Encoding
 	user_struct, _ := json.Marshal(userdataptr)
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
 
 	// Encode salt
 	salt_encrypt := []byte("user_encrypt")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
 	salt_auth := []byte("user_auth")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
 	salt_storage := []byte("user_storage")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
 
 	//HKDF
 	k_user_encrypt, err := userlib.HashKDF(k_password, salt_encrypt)
@@ -188,7 +184,6 @@ func StoreUser(userdataptr *User, k_password []byte) (err error) {
 		return err
 	}
 	hmac_cpt := append(hmac_cyphertext, cyphertext_user...)
-	//userlib.DebugMsg("size: %v, %v, %v", len(hmac_cyphertext), len(cyphertext_user), len(hmac_cpt))
 	userlib.DatastoreSet(ID_user, hmac_cpt)
 
 	return nil
@@ -357,7 +352,7 @@ func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last ui
 	ID_k, exists := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, userdata)
 	if err != nil || !exists {
-		userlib.DebugMsg("%v", k_file)
+		userlib.DebugMsg("k_file %v", k_file)
 		return nil, 0, err
 	}
 
@@ -490,6 +485,7 @@ func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
 		userlib.DebugMsg("k_DS_pub", k_DS_pub)
 		userlib.DebugMsg("signed_key.DS_k_file", len(signed_key.DS_k_file))
 		// userlib.DebugMsg("signed_key.PKE_k_file", len(signed_key.PKE_k_file))
+		userlib.DebugMsg("%v", err)
 		return nil, err
 	}
 
@@ -612,17 +608,12 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	userdataptr = &userdata
 
 	salt_encrypt := []byte("user_encrypt")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
 	salt_auth := []byte("user_auth")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
 	salt_storage := []byte("user_storage")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
 
 	// Key generation
 	byte_username := []byte(username)
 	byte_password := []byte(password)
-
-	//userlib.DebugMsg("DEBUG: key gen %s\n", string(byte_username))
 
 	k_password := userlib.Argon2Key(byte_password, byte_username, k_password_len)
 
@@ -667,7 +658,6 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	eu_cyphertext := existing_user[HMAC_size:]
 	eu_plaintext := userlib.SymDec(k_user_encrypt, eu_cyphertext)
 	stored_hmac := existing_user[:HMAC_size]
-	//userlib.DebugMsg("size: %v, %v, %v", len(stored_hmac), len(eu_cyphertext), len(existing_user))
 	evaluated_hmac, err := userlib.HashKDF(k_user_auth, eu_cyphertext)
 	if err != nil {
 		return nil, err
@@ -677,7 +667,6 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 		return nil, err
 	}
 	depadded_user := Depad(eu_plaintext)
-	//userlib.DebugMsg("size: %v", len(depadded_user))
 	json.Unmarshal(depadded_user, userdataptr)
 
 	return userdataptr, nil
@@ -692,7 +681,6 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	const VOLUME_SIZE = 1048576 // 2^20 bytes
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
-	// userlib.DebugMsg("VOLUME_SIZE mod AES block size is %v", VOLUME_SIZE % userlib.AESBlockSize)
 
 	// Initialize direct recipients
 	var recipients []string
@@ -714,7 +702,6 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	}
 	// Check if last volume has remainder data
 	remainder_data_size := data_size % VOLUME_SIZE
-	// userlib.DebugMsg("remainder %v", remainder_data_size)
 	last_volume := make([]byte, VOLUME_SIZE)
 	if remainder_data_size != 0 {
 		copy(last_volume[0:], packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
@@ -769,7 +756,11 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 		index_starting := i * VOLUME_SIZE
 		copy(packaged_data[index_starting : index_starting + VOLUME_SIZE], volumes[i])
 	}
-	copy(packaged_data[(n_volumes - 1) * VOLUME_SIZE:], volumes[n_volumes - 1][:VOLUME_SIZE - pad_last])
+	if n_volumes >= 1 && VOLUME_SIZE >= pad_last {
+		copy(packaged_data[(n_volumes - 1) * VOLUME_SIZE:], volumes[n_volumes - 1][:VOLUME_SIZE - pad_last])
+	} else if VOLUME_SIZE < pad_last {
+		return nil, errors.New(strings.ToTitle("Padding longer than VOLUME_SIZE"))
+	}
 
 	err = json.Unmarshal(packaged_data, &data)
 	if err != nil {
