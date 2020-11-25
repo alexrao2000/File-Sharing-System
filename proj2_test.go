@@ -269,4 +269,15 @@ func TestAppend(t *testing.T) {
 		t.Error("Share did not grant access to user for append, something is wrong", err)
 		return
 	}
+
+	err = u1.RevokeFile("file1", "bob")
+	if err != nil {
+		t.Error("Failed to revoke file", err)
+		return
+	}
+	err = u2.AppendFile("file2", []byte("Append this string"))
+	if err == nil {
+		t.Error("User should have lost access and cannot append, something is wrong")
+		return
+	}
 }
