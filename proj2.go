@@ -205,13 +205,13 @@ func GenerateStorageKey() (key uuid.UUID, err error) {
 	return key, nil
 }
 
-func SplitData(pack []byte) (volumes [][]byte, volume_encrypted []Volume, err error) {
+func SplitData(pack []byte) (volumes [][]byte, volumes_encrypted []Volume) {
 	const VOLUME_SIZE = 1048576 // 2^20 bytes
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16
 	data_size := len(pack) // bytes
 	n_volumes := data_size / VOLUME_SIZE + 1
-	volumes := make([][]byte, n_volumes)
-	volumes_encrypted := make([]Volume, n_volumes)
+	volumes = make([][]byte, n_volumes)
+	volumes_encrypted = make([]Volume, n_volumes)
 	for i := 0; i <= n_volumes - 2; i++ {
 		index_starting := i * VOLUME_SIZE
 		volumes[i] = pack[index_starting : index_starting+VOLUME_SIZE]
@@ -228,6 +228,7 @@ func SplitData(pack []byte) (volumes [][]byte, volume_encrypted []Volume, err er
 		volumes_encrypted[n_volumes - 1].N_pad = uint32(VOLUME_SIZE - remainder_data_size)
 		volumes[n_volumes - 1] = last_volume
 	}
+	return volumes, volumes_encrypted
 }
 
 // Pad SLICE according to the PKCS #7 scheme,
@@ -918,15 +919,23 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 	//Encrypt and Authenticate plaintext
 	k_file := userlib.RandomBytes(int(k_password_len))
 
-	volumes, err := LoadVolumes(userdata, filename)
+	volumes, pad_last, err := LoadVolumes(userdata, filename)
 	if err != nil {
 		return err
 	}
 
-	StoreVolumes(volumes, k_file)
+	n_volumes := len(volumes)
+	volumes_encrypted := make([]Volume, n_volumes)
+	if n_volumes > 0 {
+		volumes_encrypted[n_volumes - 1].N_pad = pad_last
+	}
+	err := StoreVolumes(volumes, volumes_encrypted, filename, k_file)
+	if err != nil {
+		return err
+	}
 
 	//Encrypt k_file
-	err := StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
+	err = StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
 	if err != nil {
 		return err
 	}
