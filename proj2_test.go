@@ -49,6 +49,28 @@ func TestInit(t *testing.T) {
 	if reflect.DeepEqual(u1, u2) {
 		t.Log("User was initialized and got")
 	}
+
+	u3, err := InitUser("bob", "")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error("Failed to initialize user with empty password", err)
+		return
+	}
+	// t.Log() only produces output if you run with "go test -v"
+	//t.Log("Initialized user", u1)
+	// If you want to comment the line above,
+	// write _ = u here to make the compiler happy
+	// You probably want many more tests here.
+	u3_0, err := GetUser("bob", "")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error(err)
+		return
+	}
+	//t.Log("Got user", u2)
+	if reflect.DeepEqual(u3, u3_0) {
+		t.Log("User was initialized and got")
+	}
 }
 
 func TestStorage(t *testing.T) {
@@ -81,6 +103,33 @@ func TestStorage(t *testing.T) {
 	_, err3 := u2.LoadFile("file1")
 	if err3 == nil {
 		t.Log("User loaded file to which they do not have access")
+		return
+	}
+
+	// Empty filename
+	u1.StoreFile("", v)
+
+	v0, err2 := u1.LoadFile("")
+	if err2 != nil {
+		t.Error("Failed to upload and download empty filename", err2)
+		return
+	}
+	if !reflect.DeepEqual(v, v0) {
+		t.Error("Downloaded file is not the same if filename is empty", v, v2)
+		return
+	}
+
+	// Empty file
+	v1 := []byte("")
+	u1.StoreFile("empty", v1)
+
+	v1_1, err2 := u1.LoadFile("empty")
+	if err2 != nil {
+		t.Error("Failed to upload and download empty file", err2)
+		return
+	}
+	if !reflect.DeepEqual(v1, v1_1) {
+		t.Error("Downloaded empty file is not the same", v, v2)
 		return
 	}
 }
@@ -120,7 +169,7 @@ func TestShare(t *testing.T) {
 
 	v := []byte("This is a test")
 	u1.StoreFile("file1", v)
-	
+
 	var v2 []byte
 	var magic_string string
 
@@ -230,7 +279,7 @@ func TestAppend(t *testing.T) {
 		return
 	}
 
-	v = []byte("This is a test")
+	v = []byte("")
 	u1.StoreFile("file2", v)
 
 	err = u1.AppendFile("file2", []byte("Append this string"))
@@ -284,5 +333,9 @@ func TestAppend(t *testing.T) {
 		t.Error("User should have lost access and cannot append, something is wrong")
 		return
 	}
+<<<<<<< HEAD
 	*/
 }
+=======
+}
+>>>>>>> 0511f57a204cec52e7b685395c21792c4cd74ed3

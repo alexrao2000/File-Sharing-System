@@ -91,6 +91,7 @@ type User struct {
 	AES_key_storage_keys map[string]uuid.UUID
 	//AES_key_shared_keys map[string]uuid.UUID
 	Direct_recipients map[string][]string
+	Sharers map[string]string
 
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
@@ -129,15 +130,11 @@ func StoreUser(userdataptr *User, k_password []byte) (err error) {
 	const k_password_len uint32 = 16
 	// Encoding
 	user_struct, _ := json.Marshal(userdataptr)
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(bytes))
 
 	// Encode salt
 	salt_encrypt := []byte("user_encrypt")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_encrypt))
 	salt_auth := []byte("user_auth")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_auth))
 	salt_storage := []byte("user_storage")
-	//userlib.DebugMsg("DEBUG: user JSON %s\n", string(salt_storage))
 
 	//HKDF
 	k_user_encrypt, err := userlib.HashKDF(k_password, salt_encrypt)
@@ -188,7 +185,6 @@ func StoreUser(userdataptr *User, k_password []byte) (err error) {
 		return err
 	}
 	hmac_cpt := append(hmac_cyphertext, cyphertext_user...)
-	//userlib.DebugMsg("size: %v, %v, %v", len(hmac_cyphertext), len(cyphertext_user), len(hmac_cpt))
 	userlib.DatastoreSet(ID_user, hmac_cpt)
 
 	return nil
@@ -270,6 +266,25 @@ func DepadAppend(slice []byte, pad_last uint32, new_data_len uint32) []byte {
 		}
 	}
 	return slice[:int(new_data_len)]
+}
+
+// Front pad & PKE PLAINTEXT w/ KEY to prevent IND-CPA
+func PKEEncPadded(key userlib.PKEEncKey, plaintext []byte) (ciphertext []byte, err error) {
+	const k_password_len = 16
+	front_padded := make([]byte, int(k_password_len) + len(plaintext))
+	copy(front_padded[:k_password_len], userlib.RandomBytes(int(k_password_len)))
+	copy(front_padded[k_password_len:], plaintext)
+	return userlib.PKEEnc(key, front_padded)
+}
+
+// PKE decrypt front-padded CIPHERTEXT w/ KEY
+func PKEDecPadded(key userlib.PKEDecKey, ciphertext []byte) (plaintext []byte, err error) {
+	const k_password_len uint32 = 16
+	plaintext, err = userlib.PKEDec(key, ciphertext)
+	if len(plaintext) < int(k_password_len) {
+		return nil, errors.New(strings.ToTitle("PKE plaintext shorter than pad"))
+	}
+	return plaintext[k_password_len:], err
 }
 
 /*
@@ -388,9 +403,9 @@ func EncryptAndMACVolume(volume []byte, volume_encrypted_ptr *Volume, index int,
 // Load, verify, & decrypt volumes of FILENAME with USERDATA's credentials
 func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last uint32, err error) {
 	// Get AES keys
-	ID_k, exists := userdata.AES_key_storage_keys[filename]
-	k_file, err := GetAESKeys(ID_k, userdata)
-	if err != nil || !exists {
+	ID_k, exists_key := userdata.AES_key_storage_keys[filename]
+	k_file, err := GetAESKeys(ID_k, filename, userdata)
+	if err != nil || !exists_key {
 		// userlib.DebugMsg("k_file %v", k_file)
 		return nil, 0, err
 	}
@@ -502,7 +517,7 @@ func HandlePanics()  {
 }
 
 // GET AES keys from Datastore at ID_K with USERDATA's credentials
-func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
+func GetAESKeys(ID_k uuid.UUID, filename string, userdata *User) ([]byte, error) {
 
 	m_keys, ok := userlib.DatastoreGet(ID_k)
 	if !ok {
@@ -514,7 +529,14 @@ func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
 	// userlib.DebugMsg("signed_keys", signed_keys)
 	signed_key := signed_keys[userdata.Username]
 
-	_, k_DSkey := StorageKeysPublicKey(userdata.Username)
+	sharer, exists := userdata.Sharers[filename]
+	var signer string
+	if exists {
+		signer = sharer
+	} else {
+		signer = userdata.Username
+	}
+	_, k_DSkey := StorageKeysPublicKey(signer)
 	k_DS_pub, ok := userlib.KeystoreGet(k_DSkey)
 	if !ok {
 		return nil, errors.New(strings.ToTitle("No DS key found!"))
@@ -529,16 +551,15 @@ func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
 	}
 
 	pke_k_file := signed_key.PKE_k_file
-	k_file_front_padded, err := userlib.PKEDec(userdata.K_private, pke_k_file)
+	k_file, err := PKEDecPadded(userdata.K_private, pke_k_file)
 	if err != nil {
 		return nil, err
 	}
-
-	k_file := k_file_front_padded[16:]
 	return k_file, nil
 
 }
 
+// Store K_FILE on Datastore at ID_K for RECIPIENT w/ USERDATA's credentials
 func StoreAESKeys(ID_k uuid.UUID, k_file []byte, userdata *User, recipient string) error {
 
 	m_keys, ok := userlib.DatastoreGet(ID_k)
@@ -555,7 +576,7 @@ func StoreAESKeys(ID_k uuid.UUID, k_file []byte, userdata *User, recipient strin
 	k_DS_private := userdata.K_DS_private
 
 	//Sign and Encrypt
-	enc_k_file, err := userlib.PKEEnc(k_pub, k_file)
+	enc_k_file, err := PKEEncPadded(k_pub, k_file) //FIXME
 	if err != nil {
 		return err
 	}
@@ -621,6 +642,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	userdata.AES_key_storage_keys = make(map[string]uuid.UUID)
 	//userdata.AES_key_shared_keys = make(map[string]uuid.UUID)
 	userdata.Direct_recipients = make(map[string][]string)
+	userdata.Sharers = make(map[string]string)
 
 	//store public keys
 	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
@@ -852,7 +874,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 
 	//Retrieve k_file
 	ID_k := userdata.AES_key_storage_keys[filename]
-	k_file, err := GetAESKeys(ID_k, userdata)
+	k_file, err := GetAESKeys(ID_k, filename, userdata)
 	if err != nil {
 		return "", errors.New(strings.ToTitle("File not found!"))
 	}
@@ -873,7 +895,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	if err != nil {
 		return "", err
 	}
-	enc_ID_k, err := userlib.PKEEnc(k_pub, bytes_ID_k)
+	enc_ID_k, err := PKEEncPadded(k_pub, bytes_ID_k)
 	if err != nil {
 		return "", errors.New(strings.ToTitle("File not found!"))
 	}
@@ -939,7 +961,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	if err != nil {
 		return err
 	}
-	bytes_ID_k, err := userlib.PKEDec(k_private, token.PKE_k_file)
+	bytes_ID_k, err := PKEDecPadded(k_private, token.PKE_k_file)
 	if err != nil {
 		return err
 	}
@@ -949,6 +971,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	}
 
 	userdata.AES_key_storage_keys[filename] = ID_k
+	userdata.Sharers[filename] = sender
 	/*
 	//Add new file to map
 	k_file, err := GetAESKeys(ID_k, userdata)
