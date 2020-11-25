@@ -181,6 +181,7 @@ func StoreUser(userdataptr *User, k_password []byte) (err error) {
 	copy(padded_struct[:], user_struct)
 	Pad(padded_struct, len_user, pad_len)
 
+	defer HandlePanics()
 	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, padded_struct)
 	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
 	if err != nil {
@@ -294,8 +295,9 @@ func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last ui
 	// Get AES keys
 	ID_k, exists := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, userdata)
+	userlib.DebugMsg("k_file Exists %v", k_file)
 	if err != nil || !exists {
-		userlib.DebugMsg("%v", err)
+		userlib.DebugMsg("%v", k_file)
 		return nil, 0, err
 	}
 
@@ -315,6 +317,7 @@ func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last ui
 
 	// Verify & decrypt
 	n_volumes := len(volumes_encrypted)
+	volumes = make([][]byte, n_volumes)
 	for index, volume_encrypted := range volumes_encrypted {
 		volumes[index], pad_last, err = VerifyAndDecryptVolume(volume_encrypted, index, n_volumes, k_file)
 		// pad_last is finalised in last iteration
@@ -335,6 +338,7 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 
 	// Check length
 	if len(volume_encrypted.Ciphertext) != ENCRYPTED_VOLUME_SIZE {
+		userlib.DebugMsg("Ciphertext length", len(volume_encrypted.Ciphertext))
 		return nil, 0, errors.New(strings.ToTitle("Wrong ciphertext length"))
 	}
 
@@ -413,7 +417,7 @@ func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
 
 	signed_keys := make(map[string]SignedKey)
 	json.Unmarshal(m_keys, &signed_keys)
-	userlib.DebugMsg("signed_keys", signed_keys)
+	// userlib.DebugMsg("signed_keys", signed_keys)
 	signed_key := signed_keys[userdata.Username]
 
 	_, k_DSkey := StorageKeysPublicKey(userdata.Username)
@@ -650,18 +654,22 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	}
 	// Check if last volume has remainder data
 	remainder_data_size := data_size % VOLUME_SIZE
-	var last_volume []byte
+	// userlib.DebugMsg("remainder %v", remainder_data_size)
+	last_volume := make([]byte, VOLUME_SIZE)
 	if remainder_data_size != 0 {
-		copy(last_volume[:], packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
+		copy(last_volume[0:], packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
 	}
-	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE)
+	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE) //FIXME
 	volumes_encrypted[n_volumes - 1].N_pad = uint32(VOLUME_SIZE - remainder_data_size)
 	volumes[n_volumes - 1] = last_volume
+	// userlib.DebugMsg("Packaged %v", packaged_data)
+	// userlib.DebugMsg("Volumes %v", volumes)
+
 	// Encrypt & authenticate
 	k_file := userlib.RandomBytes(int(k_password_len))
 	// var k_volume [k_password_len]byte
 	for index, volume := range volumes {
-		volume_encrypted, err := EncryptAndMACVolume(volume, index, k_file)
+		volume_encrypted, err := EncryptAndMACVolume(volume[:], index, k_file)
 		if err != nil {
 			userlib.DebugMsg("%v", err)
 			return
