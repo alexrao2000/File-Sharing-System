@@ -95,25 +95,7 @@ func TestInvalidFile(t *testing.T) {
 
 	_, err2 := u.LoadFile("this file does not exist")
 	if err2 == nil {
-		t.Error("Downloaded a ninexistent file", err2)
-		return
-	}
-}
-
-func TestAppend(t *testing.T) {
-	clear()
-	u, err := InitUser("alice", "fubar")
-	if err != nil {
-		t.Error("Failed to initialize user", err)
-		return
-	}
-
-	v := []byte("This is a test")
-	u.StoreFile("file1", v)
-
-	err = u.AppendFile("file1", []byte("Append this string"))
-	if err != nil {
-		t.Error("Failed to append to file", err)
+		t.Error("Downloaded a ninexistent file")
 		return
 	}
 }
@@ -192,7 +174,7 @@ func TestShare(t *testing.T) {
 
 	magic_string, err = u1.ShareFile("file3", "carl")
 	if err == nil {
-		t.Error("Shared file that does not exist", err)
+		t.Error("Shared file that does not exist")
 		return
 	}
 
@@ -212,6 +194,79 @@ func TestShare(t *testing.T) {
 	err = u1.RevokeFile("file2", "carl")
 	if err != nil {
 		t.Error("User cannot revoke file because it does not exist in user's owned files", err)
+		return
+	}
+}
+
+func TestAppend(t *testing.T) {
+	clear()
+	u1, err := InitUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	u2, err := InitUser("bob", "foobar")
+	if err != nil {
+		t.Error("Failed to initialize user", err)
+		return
+	}
+
+	v := []byte("This is a test")
+	u1.StoreFile("file1", v)
+
+	err = u1.AppendFile("file1", []byte("Append this string"))
+	if err != nil {
+		t.Error("Failed to append to file", err)
+		return
+	}
+
+	err = u1.AppendFile("file2", []byte("Append this string"))
+	if err == nil {
+		t.Error("User should not be able to append to file that does not exist")
+		return
+	}
+
+	v = []byte("This is a test")
+	u1.StoreFile("file2", v)
+
+	err = u1.AppendFile("file2", []byte("Append this string"))
+	if err != nil {
+		t.Error("Cannot append to file that does not exist", err)
+		return
+	}
+
+	err = u2.AppendFile("file2", []byte("Append this string"))
+	if err == nil {
+		t.Error("User should not be able to append to file to which they do not have access")
+		return
+	}
+
+	var v2 []byte
+	var magic_string string
+
+	magic_string, err = u1.ShareFile("file1", "bob")
+	if err != nil {
+		t.Error("Failed to share the a file", err)
+		return
+	}
+	err = u2.ReceiveFile("file2", "alice", magic_string)
+	if err != nil {
+		t.Error("Failed to receive the share message", err)
+		return
+	}
+	v2, err = u2.LoadFile("file2")
+	if err != nil {
+		t.Error("Failed to download the file after sharing", err)
+		return
+	}
+	if !reflect.DeepEqual(v, v2) {
+		t.Error("Shared file is not the same", v, v2)
+		return
+	}
+
+	err = u2.AppendFile("file2", []byte("Append this string"))
+	if err != nil {
+		t.Error("Share did not grant access to user for append, something is wrong", err)
 		return
 	}
 }
