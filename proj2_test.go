@@ -190,4 +190,10 @@ func TestShare(t *testing.T) {
 		return
 	}
 
+	magic_string, err = u1.ShareFile("file3", "carl")
+	if err == nil {
+		t.Error("Shared file that does not exist", err)
+		return
+	}
+
 }
