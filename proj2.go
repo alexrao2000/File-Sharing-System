@@ -1136,12 +1136,15 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 		return err
 	}
 
-	StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
+	err := StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
+	if err != nil {
+		return err
+	}
 	*/
 
 	StoreUser(userdata, userdata.K_password)
 
-	return err
+	return nil
 }
 
 // Removes target user's access.
