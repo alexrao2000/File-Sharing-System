@@ -215,10 +215,10 @@ func Pad(slice []byte, present_length int, target_length int) []byte {
 	if pad > 0 && len(slice) <= target_length {
 		pad_byte := byte(pad % 256)
 		for j := present_length; j < target_length; j++ {
-			slice = append(slice, pad_byte)
+			slice[j] = pad_byte
 		}
 	}
-	return slice
+	return slice[:]
 }
 
 //Depad a padded byte array, ex. user_struct
