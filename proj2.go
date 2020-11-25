@@ -788,7 +788,7 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 
 	//Store Volumes
 	ID_k := userdata.AES_key_storage_keys[filename]
-	k_file, err := GetAESKeys(ID_k, userdata)
+	k_file, err := GetAESKeys(ID_k, filename, userdata)
 	if err != nil {
 		return err
 	}
