@@ -793,7 +793,35 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 //
 // It should give an error if the file is corrupted in any way.
 func (userdata *User) LoadFile(filename string) (data []byte, err error) {
+	// Parameters
+	const VOLUME_SIZE = 1048576 // 2^20 bytes
+	const k_password_len uint32 = 16
+	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
 
+	volumes, pad_last, err := LoadVolumes(userdata, filename)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return nil, err
+	}
+	// Combine volumes
+	n_volumes := len(volumes)
+	data_size := n_volumes * VOLUME_SIZE - int(pad_last)
+	packaged_data := make([]byte, data_size)
+	for i := 0; i <= n_volumes - 2; i++ {
+		index_starting := i * VOLUME_SIZE
+		copy(packaged_data[index_starting : index_starting + VOLUME_SIZE], volumes[i])
+	}
+	if n_volumes >= 1 && VOLUME_SIZE >= pad_last {
+		copy(packaged_data[(n_volumes - 1) * VOLUME_SIZE:], volumes[n_volumes - 1][:VOLUME_SIZE - pad_last])
+	} else if VOLUME_SIZE < pad_last {
+		return nil, errors.New(strings.ToTitle("Padding longer than VOLUME_SIZE"))
+	}
+
+	err = json.Unmarshal(packaged_data, &data)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return nil, err
+	}
 	return data, nil
 }
 
