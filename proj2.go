@@ -205,13 +205,13 @@ func GenerateStorageKey() (key uuid.UUID, err error) {
 	return key, nil
 }
 
-func SplitData(pack []byte) (volumes [][]byte, volume_encrypted []Volume, err error) {
+func SplitData(pack []byte) (volumes [][]byte, volumes_encrypted []Volume) {
 	const VOLUME_SIZE = 1048576 // 2^20 bytes
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16
 	data_size := len(pack) // bytes
 	n_volumes := data_size / VOLUME_SIZE + 1
-	volumes := make([][]byte, n_volumes)
-	volumes_encrypted := make([]Volume, n_volumes)
+	volumes = make([][]byte, n_volumes)
+	volumes_encrypted = make([]Volume, n_volumes)
 	for i := 0; i <= n_volumes - 2; i++ {
 		index_starting := i * VOLUME_SIZE
 		volumes[i] = pack[index_starting : index_starting+VOLUME_SIZE]
@@ -228,6 +228,7 @@ func SplitData(pack []byte) (volumes [][]byte, volume_encrypted []Volume, err er
 		volumes_encrypted[n_volumes - 1].N_pad = uint32(VOLUME_SIZE - remainder_data_size)
 		volumes[n_volumes - 1] = last_volume
 	}
+	return volumes, volumes_encrypted
 }
 
 // Pad SLICE according to the PKCS #7 scheme,
@@ -288,8 +289,7 @@ func StoreVolumes(volumes [][]byte, volumes_encrypted []Volume, filename string,
 	k_pubkey, _ := StorageKeysPublicKey(userdata.Username)
 	k_pub, ok := userlib.KeystoreGet(k_pubkey)
 	if !ok {
-		userlib.DebugMsg("%v", errors.New(strings.ToTitle("Public key fetch failed")))
-		return
+		return errors.New(strings.ToTitle("Public key fetch failed"))
 	}
 
 	// Store data
@@ -377,7 +377,7 @@ func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last ui
 	ID_k, exists := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, userdata)
 	if err != nil || !exists {
-		userlib.DebugMsg("k_file %v", k_file)
+		// userlib.DebugMsg("k_file %v", k_file)
 		return nil, 0, err
 	}
 
@@ -560,7 +560,7 @@ func StoreAESKeys(ID_k uuid.UUID, k_file []byte, userdata *User, recipient strin
 	m_keys, _ = json.Marshal(signed_keys)
 	userlib.DatastoreSet(ID_k, m_keys)
 
-	return err
+	return nil
 }
 
 // This creates a user.  It will only be called once for a user
@@ -716,11 +716,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	// userlib.DebugMsg("Packaged data %v", packaged_data[:30])
 
 	// Splitting
-	volumes, volumes_encrypted, err := SplitData(packaged_data)
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return
-	}
+	volumes, volumes_encrypted := SplitData(packaged_data)
 
 	// Encrypt & authenticate
 	k_file := userlib.RandomBytes(int(k_password_len))
@@ -860,6 +856,18 @@ func (userdata *User) ReceiveFile(filename string, sender string,
     	return errors.New(strings.ToTitle("File with that name already exists!"))
 	}
 
+	var token SignedKey
+	var ID_k uuid.UUID
+
+	bytes_token, err := hex.DecodeString(magic_string)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(bytes_token, &token)
+	if err != nil {
+		return err
+	}
+
 	//Retrieve keys
 	_, k_DSkey := StorageKeysPublicKey(sender)
 	k_DS_pub, ok := userlib.KeystoreGet(k_DSkey)
@@ -869,14 +877,6 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	k_private := userdata.K_private
 
 	//Verify and Decrypt
-	var token SignedKey
-	var ID_k uuid.UUID
-
-	bytes_token := []byte(magic_string)
-	err := json.Unmarshal(bytes_token, &token)
-	if err != nil {
-		return err
-	}
 	err = userlib.DSVerify(k_DS_pub, token.PKE_k_file, token.DS_k_file)
 	if err != nil {
 		return err
