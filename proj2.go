@@ -756,7 +756,6 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	}
 	// Combine volumes
 	n_volumes := len(volumes)
-	// userlib.DebugMsg("volumes %v", volumes)
 	data_size := n_volumes * VOLUME_SIZE - int(pad_last)
 	packaged_data := make([]byte, data_size)
 	for i := 0; i <= n_volumes - 2; i++ {
