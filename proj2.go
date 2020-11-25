@@ -190,6 +190,22 @@ func StoreUser(userdataptr *User, k_password []byte) (err error) {
 	return nil
 }
 
+// Randomly generate a new UUID
+// that does not conflict w/ an existent one on Datastore
+func GenerateStorageKey() (key uuid.UUID, err error) {
+	const trials = 10
+	ok := true
+	for i := 0; ok && i < trials; i ++ {
+		key = uuid.New()
+		_, ok = userlib.DatastoreGet(key)
+	}
+	if ok {
+		err = errors.New(strings.ToTitle("ID_k already exists"))
+		return
+	}
+	return key, nil
+}
+
 // Pad SLICE according to the PKCS #7 scheme,
 // i.e. padding with the number (as a byte) of elements to pad,
 // from PRESENT_LENGTH to TARGET_LENGTH
@@ -544,7 +560,11 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	}
 
 	// Store data
-	ID_k := uuid.New()
+	ID_k, err := GenerateStorageKey()
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return
+	}
 	stored, _ := json.Marshal(volumes_encrypted)
 	hash_ID_k := userlib.Hash([]byte(ID_k.String()))
 	ID_file, err := uuid.FromBytes(hash_ID_k[:16])
