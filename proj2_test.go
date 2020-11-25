@@ -275,7 +275,7 @@ func TestAppend(t *testing.T) {
 		return
 	}
 
-	v = []byte("This is a test")
+	v = []byte("")
 	u1.StoreFile("file2", v)
 
 	err = u1.AppendFile("file2", []byte("Append this string"))

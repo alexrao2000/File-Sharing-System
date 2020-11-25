@@ -205,6 +205,31 @@ func GenerateStorageKey() (key uuid.UUID, err error) {
 	return key, nil
 }
 
+func SplitData(pack []byte) (volumes [][]byte, volume_encrypted []Volume, err error) {
+	const VOLUME_SIZE = 1048576 // 2^20 bytes
+	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16
+	data_size := len(pack) // bytes
+	n_volumes := data_size / VOLUME_SIZE + 1
+	volumes := make([][]byte, n_volumes)
+	volumes_encrypted := make([]Volume, n_volumes)
+	for i := 0; i <= n_volumes - 2; i++ {
+		index_starting := i * VOLUME_SIZE
+		volumes[i] = pack[index_starting : index_starting+VOLUME_SIZE]
+		volumes_encrypted[i].N_pad = 0
+	}
+	// Check if last volume has remainder data
+	remainder_data_size := data_size % VOLUME_SIZE
+	last_volume := make([]byte, VOLUME_SIZE)
+	if remainder_data_size > 0 && n_volumes > 0 {
+		copy(last_volume[0:], pack[(n_volumes - 1) * VOLUME_SIZE:])
+	}
+	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE) //FIXME
+	if n_volumes > 0 {
+		volumes_encrypted[n_volumes - 1].N_pad = uint32(VOLUME_SIZE - remainder_data_size)
+		volumes[n_volumes - 1] = last_volume
+	}
+}
+
 // Pad SLICE according to the PKCS #7 scheme,
 // i.e. padding with the number (as a byte) of elements to pad,
 // from PRESENT_LENGTH to TARGET_LENGTH
@@ -691,24 +716,11 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	// userlib.DebugMsg("Packaged data %v", packaged_data[:30])
 
 	// Splitting
-	data_size := len(packaged_data) // bytes
-	n_volumes := data_size / VOLUME_SIZE + 1
-	volumes := make([][]byte, n_volumes)
-	volumes_encrypted := make([]Volume, n_volumes)
-	for i := 0; i <= n_volumes - 2; i++ {
-		index_starting := i * VOLUME_SIZE
-		volumes[i] = packaged_data[index_starting : index_starting+VOLUME_SIZE]
-		volumes_encrypted[i].N_pad = 0
+	volumes, volumes_encrypted, err := SplitData(packaged_data)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return
 	}
-	// Check if last volume has remainder data
-	remainder_data_size := data_size % VOLUME_SIZE
-	last_volume := make([]byte, VOLUME_SIZE)
-	if remainder_data_size != 0 {
-		copy(last_volume[0:], packaged_data[(n_volumes - 1) * VOLUME_SIZE:])
-	}
-	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE) //FIXME
-	volumes_encrypted[n_volumes - 1].N_pad = uint32(VOLUME_SIZE - remainder_data_size)
-	volumes[n_volumes - 1] = last_volume
 
 	// Encrypt & authenticate
 	k_file := userlib.RandomBytes(int(k_password_len))
