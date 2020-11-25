@@ -911,7 +911,7 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 	const k_password_len uint32 = 16
 
 	//Check if user owns file
-	direct_recipients, exists := userdata.Direct_recipients[filename]
+	_, exists := userdata.Direct_recipients[filename]
 	if !exists {
 		return errors.New(strings.ToTitle("User does not own file!")) 
 	}
@@ -929,17 +929,19 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 	if n_volumes > 0 {
 		volumes_encrypted[n_volumes - 1].N_pad = pad_last
 	}
-	err := StoreVolumes(volumes, volumes_encrypted, filename, k_file)
+
+	err = StoreVolumes(volumes, volumes_encrypted, filename, userdata, k_file)
 	if err != nil {
 		return err
 	}
 
 	//Encrypt k_file
-	err := StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
+	ID_k := userdata.AES_key_storage_keys[filename]
+	err = StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
 	if err != nil {
 		return err
 	}
-	for index, recipient := range userdata.Direct_recipients {
+	for _, recipient := range userdata.Direct_recipients[filename] {
 		if recipient != target_username {
 			err := StoreAESKeys(ID_k, k_file, userdata, recipient)
 			if err != nil {
