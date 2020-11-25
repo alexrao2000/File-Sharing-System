@@ -283,7 +283,7 @@ func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
 	}
 
 	signed_keys := make(map[string]SignedKey)
-	json.Unmarshal(m_keys, signed_keys)
+	json.Unmarshal(m_keys, &signed_keys)
 	signed_key := signed_keys[userdata.Username]
 
 	_, k_DSkey := StorageKeysPublicKey(userdata.Username)
@@ -337,7 +337,7 @@ func StoreAESKeys(ID_k uuid.UUID, k_file []byte, userdata *User, recipient strin
 	signed_key.PKE_k_file = enc_k_file
 	signed_key.DS_k_file = signed_k_file
 	signed_keys := make(map[string]SignedKey)
-	json.Unmarshal(m_keys, signed_keys)
+	json.Unmarshal(m_keys, &signed_keys)
 	signed_keys[recipient] = signed_key //recipient or userdata?
 	m_keys, _ = json.Marshal(signed_keys)
 	userlib.DatastoreSet(ID_k, m_keys)
@@ -704,7 +704,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	var ID_k uuid.UUID
 
 	bytes_token := []byte(magic_string)
-	err := json.Unmarshal(bytes_token, token)
+	err := json.Unmarshal(bytes_token, &token)
 	if err != nil {
 		return err
 	}
@@ -716,7 +716,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(bytes_ID_k, ID_k)
+	err = json.Unmarshal(bytes_ID_k, &ID_k)
 	if err != nil {
 		return err
 	}
