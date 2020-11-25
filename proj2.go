@@ -919,12 +919,20 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 	//Encrypt and Authenticate plaintext
 	k_file := userlib.RandomBytes(int(k_password_len))
 
-	volumes, err := LoadVolumes(userdata, filename)
+	volumes, pad_last, err := LoadVolumes(userdata, filename)
 	if err != nil {
 		return err
 	}
 
-	StoreVolumes(volumes, k_file)
+	n_volumes := len(volumes)
+	volumes_encrypted := make([]Volume, n_volumes)
+	if n_volumes > 0 {
+		volumes_encrypted[n_volumes - 1].N_pad = pad_last
+	}
+	err := StoreVolumes(volumes, volumes_encrypted, filename, k_file)
+	if err != nil {
+		return err
+	}
 
 	//Encrypt k_file
 	err := StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
