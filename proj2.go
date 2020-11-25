@@ -209,6 +209,11 @@ func Pad(slice []byte, present_length int, target_length int) []byte {
 func Depad(slice []byte) []byte {
 	pad_len := int(slice[len(slice)-1])
 	last_val := len(slice) - pad_len
+	for index := len(slice) - 1; index >= last_val; index-- {
+		if int(slice[index]) != int(slice[len(slice)-1]) {
+			userlib.DebugMsg("Can't depad unpadded byte array")
+		}
+	}
 	return slice[:last_val]
 }
 
