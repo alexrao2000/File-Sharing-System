@@ -206,13 +206,11 @@ func TestAppend(t *testing.T) {
 		return
 	}
 
-	/*
 	u2, err := InitUser("bob", "foobar")
 	if err != nil {
 		t.Error("Failed to initialize user", err)
 		return
 	}
-	*/
 
 	v := []byte("This is a test")
 	u1.StoreFile("file1", v)
