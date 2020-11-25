@@ -205,11 +205,14 @@ func TestAppend(t *testing.T) {
 		t.Error("Failed to initialize user", err)
 		return
 	}
+
+	/*
 	u2, err := InitUser("bob", "foobar")
 	if err != nil {
 		t.Error("Failed to initialize user", err)
 		return
 	}
+	*/
 
 	v := []byte("This is a test")
 	u1.StoreFile("file1", v)
@@ -220,6 +223,7 @@ func TestAppend(t *testing.T) {
 		return
 	}
 
+	/*
 	err = u1.AppendFile("file2", []byte("Append this string"))
 	if err == nil {
 		t.Error("User should not be able to append to file that does not exist")
@@ -280,4 +284,5 @@ func TestAppend(t *testing.T) {
 		t.Error("User should have lost access and cannot append, something is wrong")
 		return
 	}
+	*/
 }
