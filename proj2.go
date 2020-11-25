@@ -174,9 +174,12 @@ func StoreUser(userdataptr *User, k_password []byte) (err error) {
 	iv := userlib.RandomBytes(userlib.AESBlockSize)
 
 	// Padding
-	pad_len := (len(user_struct) / 16 + 1) * 16
+	len_user := len(user_struct)
+	pad_len := (len_user / 16 + 1) * 16
 	//userlib.DebugMsg("size: %v", len(user_struct))
-	padded_struct := Pad(user_struct, len(user_struct), pad_len)
+	padded_struct := make([]byte, pad_len)
+	copy(padded_struct[:], user_struct)
+	Pad(padded_struct, len_user, pad_len)
 
 	cyphertext_user := userlib.SymEnc(k_user_encrypt, iv, padded_struct)
 	hmac_cyphertext, err := userlib.HashKDF(k_user_auth, cyphertext_user)
@@ -212,7 +215,7 @@ func GenerateStorageKey() (key uuid.UUID, err error) {
 // Do nothing if TARGET_LENGTH is no longer than PRESENT_LENGTH is
 func Pad(slice []byte, present_length int, target_length int) []byte {
 	pad := target_length - present_length
-	if pad > 0 && len(slice) <= target_length {
+	if pad > 0 && len(slice) >= target_length {
 		pad_byte := byte(pad % 256)
 		for j := present_length; j < target_length; j++ {
 			slice[j] = pad_byte
