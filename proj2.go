@@ -344,7 +344,6 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 	pad_last = 0
 	if index == n_volumes - 1 {
 		pad_last = volume_encrypted.N_pad
-		userlib.DebugMsg("Pad_last %v", pad_last)
 	} else if volume_encrypted.N_pad != 0 {
 		return nil, 0, errors.New(strings.ToTitle("Non-last volume has non-zero padding"))
 	}
