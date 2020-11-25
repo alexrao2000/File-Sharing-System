@@ -172,7 +172,7 @@ func TestShare(t *testing.T) {
 	//Custom tests
 	magic_string, err = u2.ShareFile("file1", "carl")
 	if err != nil {
-		t.Error("User is not the owner of file", err)
+		t.Error("User is not the owner of shared file", err)
 		return
 	}
 
@@ -196,4 +196,21 @@ func TestShare(t *testing.T) {
 		return
 	}
 
+	err = u1.RevokeFile("file1", "bob")
+	if err != nil {
+		t.Error("Failed to revoke file", err)
+		return
+	}
+
+	err = u1.RevokeFile("file1", "carl")
+	if err != nil {
+		t.Error("Target user does not have access to file", err)
+		return
+	}
+
+	err = u1.RevokeFile("file2", "carl")
+	if err != nil {
+		t.Error("User cannot revoke file because it does not exist in user's owned files", err)
+		return
+	}
 }
