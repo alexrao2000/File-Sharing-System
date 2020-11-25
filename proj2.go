@@ -1040,15 +1040,12 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 		return err
 	}
 
-	err := StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
-	if err != nil {
-		return err
-	}
+	StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
 	*/
 
 	StoreUser(userdata, userdata.K_password)
 
-	return nil
+	return err
 }
 
 // Removes target user's access.
@@ -1069,15 +1066,7 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 		return err
 	}
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 	StoreVolumes(volumes, k_file)
-=======
-	//StoreVolumes(volumes)
->>>>>>> check for target_username
-=======
-	StoreVolumes(volumes, k_file)
->>>>>>> formatting
 
 	//Encrypt k_file
 	err := StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
