@@ -295,9 +295,8 @@ func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last ui
 	// Get AES keys
 	ID_k, exists := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, userdata)
-	userlib.DebugMsg("k_file Exists %v", k_file)
 	if err != nil || !exists {
-		userlib.DebugMsg("%v", k_file)
+		userlib.DebugMsg("%v", err)
 		return nil, 0, err
 	}
 
@@ -416,7 +415,6 @@ func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
 
 	signed_keys := make(map[string]SignedKey)
 	json.Unmarshal(m_keys, &signed_keys)
-	// userlib.DebugMsg("signed_keys", signed_keys)
 	signed_key := signed_keys[userdata.Username]
 
 	_, k_DSkey := StorageKeysPublicKey(userdata.Username)
@@ -752,7 +750,6 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	}
 	// Combine volumes
 	n_volumes := len(volumes)
-	// userlib.DebugMsg("volumes %v", volumes)
 	data_size := n_volumes * VOLUME_SIZE - int(pad_last)
 	packaged_data := make([]byte, data_size)
 	for i := 0; i <= n_volumes - 2; i++ {
