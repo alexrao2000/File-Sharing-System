@@ -234,6 +234,15 @@ func Depad(slice []byte) []byte {
 	return slice[:last_val]
 }
 
+func DepadAppend(slice []byte, pad_last uint32, new_data_len int) []byte {
+	for index := 0; index < pad_last; index++ {
+		if int(slice[index]) != pad_last % 256 {
+			userlib.DebugMsg("Can't depad unpadded byte array")
+		}
+	}
+	return slice[:new_data_len]
+}
+
 /*
 //Returns true if two byte slices are equal, false otherwise
 func bytesEqual(a, b []byte) bool {
@@ -727,7 +736,54 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	// index_k = userdata.AES_key_indices[filename]
 	// ID_k := userdata.AES_key_storage_keys[filename]
 	// userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
-	return
+	const VOLUME_SIZE = 1048576
+
+	//Load Volume
+	volumes, pad_last, err := LoadVolumes(userdata, filename)
+	if err != nil {
+		return err
+	}
+
+	//Depad the last volume using pad_last
+	new_data_len = VOLUME_SIZE - pad_last
+	last_volume := volumes[len(volumes)-1] 
+	depadded_volume := DepadAppend(data, pad_last, new_data_len)
+
+	//Add volume_size - pad_last from data to last volume
+	//copy(last_volume[new_data_len:], data[:new_data_len])
+	//new_data = data[new_data_len:]
+
+	//Calculate # of new volumes, create [][]byte to contain new volumes
+	//num_new_volumes := len(new_data) / VOLUME_SIZE
+	//new_volumes := make([]byte, num_new_volumes)
+
+	//Generate new volumes
+	all_data := Append(depadded_volume, data...)
+	new_volumes, err := SplitData(all_data)
+	if err != nil {
+		return err
+	}
+
+	/*
+	for index := 0; index < num_new_volumes; index++ {
+		volume_start :=
+		volume_end :=
+		new_volumes[index] = volume_start:volume_end
+	}
+	*/
+
+	//Store Volumes
+	ID_k := userdata.AES_key_storage_keys[filename]
+	k_file, err = GetAESKeys(ID_k, userdata)
+	if err != nil {
+		return err
+	}
+	err := StoreVolumes(new_volumes, k_file)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // This loads a file from the Datastore.
