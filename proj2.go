@@ -662,9 +662,6 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE) //FIXME
 	volumes_encrypted[n_volumes - 1].N_pad = uint32(VOLUME_SIZE - remainder_data_size)
 	volumes[n_volumes - 1] = last_volume
-	// userlib.DebugMsg("Packaged %v", packaged_data)
-	// userlib.DebugMsg("Volumes %v", volumes)
-
 	// Encrypt & authenticate
 	k_file := userlib.RandomBytes(int(k_password_len))
 	// var k_volume [k_password_len]byte
