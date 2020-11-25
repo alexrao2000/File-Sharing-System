@@ -749,7 +749,10 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	// index_k = userdata.AES_key_indices[filename]
 	// ID_k := userdata.AES_key_storage_keys[filename]
 	// userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
-	return
+	if userdata.AES_key_storage_keys[filename] == uuid.New() {
+		return errors.New(strings.ToTitle("File does not exist"))
+	}
+	return nil
 }
 
 // This loads a file from the Datastore.
@@ -919,5 +922,12 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 
 // Removes target user's access.
 func (userdata *User) RevokeFile(filename string, target_username string) (err error) {
-	return
+	if userdata.AES_key_storage_keys[filename] == uuid.New() {
+		return errors.New(strings.ToTitle("File does not exist"))
+	}
+	_, exists := userdata.Direct_recipients[filename]
+	if !exists {
+		return errors.New(strings.ToTitle("No direct recipients"))
+	}
+	return nil
 }
