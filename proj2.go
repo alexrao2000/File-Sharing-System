@@ -416,6 +416,7 @@ func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
 
 	signed_keys := make(map[string]SignedKey)
 	json.Unmarshal(m_keys, &signed_keys)
+	// userlib.DebugMsg("signed_keys", signed_keys)
 	signed_key := signed_keys[userdata.Username]
 
 	_, k_DSkey := StorageKeysPublicKey(userdata.Username)
