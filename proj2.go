@@ -134,7 +134,7 @@ func StoreUser(userdataptr *User, k_password []byte) (err error) {
 	// Encode salt
 	salt_encrypt := []byte("user_encrypt")
 	salt_auth := []byte("user_auth")
-	salt_storage := []byte("user_storage")
+	//salt_storage := []byte("user_storage")
 
 	//HKDF
 	k_user_encrypt, err := userlib.HashKDF(k_password, salt_encrypt)
@@ -149,20 +149,25 @@ func StoreUser(userdataptr *User, k_password []byte) (err error) {
 	}
 	k_user_auth = k_user_auth[:k_password_len]
 
-	k_user_storage, err := userlib.HashKDF(k_password, salt_storage)
-	if err != nil {
-		return err
-	}
-	k_user_storage = k_user_storage[:k_password_len]
+	//k_user_storage, err := userlib.HashKDF(k_password, salt_storage)
+	//if err != nil {
+	//	return err
+	//}
+	//k_user_storage = k_user_storage[:k_password_len]
 
 	byte_username := []byte(userdataptr.Username)
-	hmac_username, err := userlib.HashKDF(k_user_storage, byte_username)
-	hmac_username = hmac_username[:k_password_len]
+	hash_username := userlib.Hash(byte_username)
+	hash_username_slice := make([]byte, k_password_len)
+	copy(hash_username_slice, hash_username[:k_password_len])
+
+	ID_user, err := uuid.FromBytes(hash_username_slice)
 	if err != nil {
 		return err
 	}
-	ID_user, err := uuid.FromBytes(hmac_username)
-	if err != nil {
+
+	_, ok := userlib.DatastoreGet(ID_user)
+	if ok {
+		err = errors.New("User already exists")
 		return err
 	}
 
@@ -663,7 +668,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 
 	salt_encrypt := []byte("user_encrypt")
 	salt_auth := []byte("user_auth")
-	salt_storage := []byte("user_storage")
+	//salt_storage := []byte("user_storage")
 
 	// Key generation
 	byte_username := []byte(username)
@@ -684,20 +689,18 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	}
 	k_user_auth = k_user_auth[:k_password_len]
 
-	k_user_storage, err := userlib.HashKDF(k_password, salt_storage)
-	if err != nil {
-		return nil, err
-	}
-	k_user_storage = k_user_storage[:k_password_len]
+	//k_user_storage, err := userlib.HashKDF(k_password, salt_storage)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//k_user_storage = k_user_storage[:k_password_len]
 
 	//Calculate ID_sure
-	hmac_username, err := userlib.HashKDF(k_user_storage, byte_username)
-	if err != nil {
-		return nil, err
-	}
-	hmac_username = hmac_username[:k_password_len]
+	hash_username := userlib.Hash(byte_username)
+	hash_username_slice := make([]byte, k_password_len)
+	copy(hash_username_slice, hash_username[:k_password_len])
 
-	ID_user, err := uuid.FromBytes(hmac_username)
+	ID_user, err := uuid.FromBytes(hash_username_slice)
 	if err != nil {
 		return nil, err
 	}
