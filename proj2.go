@@ -789,7 +789,7 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	new_data := append(depadded_volume, data...)
 	new_volumes, new_volumes_encrypted := SplitData(new_data)
 
-	//Generate volumes_encrypted
+	//Generate volumes_encrypted and volumes
 	volumes_encrypted := make([]Volume, len(volumes)-1)
 	volumes = append(volumes[:len(volumes) - 1], new_volumes...)
 	for _, enc_volume := range volumes_encrypted {
@@ -798,6 +798,12 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	}
 	volumes_encrypted = append(volumes_encrypted, new_volumes_encrypted...)
 
+	for _, enc_volume := range volumes_encrypted {
+		userlib.DebugMsg("length: %v", len(data)+len(depadded_volume))
+		userlib.DebugMsg("n_pad: %v", enc_volume.N_pad)
+		userlib.DebugMsg("size: %v", VOLUME_SIZE)
+	}
+	
 	//Pad last volume
 	last_volume = volumes[len(volumes)-1]
 	padded_volume := make([]byte, VOLUME_SIZE)
