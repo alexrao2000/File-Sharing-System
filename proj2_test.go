@@ -71,6 +71,23 @@ func TestInit(t *testing.T) {
 	if reflect.DeepEqual(u3, u3_0) {
 		t.Log("User was initialized and got")
 	}
+
+	u4, err := GetUser("bob", "")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error(err)
+		return
+	}
+	if reflect.DeepEqual(u3, u4) {
+		t.Log("User was initialized and got")
+	}
+
+	_, err = InitUser("bob", "hey")
+	if err == nil {
+		// t.Error says the test fails
+		t.Error("Should not be able to initialize two users with the same username")
+		return
+	}
 }
 
 func TestStorage(t *testing.T) {
