@@ -136,16 +136,16 @@ func TestStorage(t *testing.T) {
 	}
 
 	//Overwrite file
-	v = []byte("hi")
-	u1.StoreFile("file1", v)
+	hi := []byte("hi")
+	u1.StoreFile("file1", hi)
 
 	v, err2 = u1.LoadFile("file1")
 	if err2 != nil {
 		t.Error("Failed to upload and download", err2)
 		return
 	}
-	if reflect.DeepEqual(v, v2) {
-		t.Error("Did not correctly overwrite file", v, v2)
+	if !reflect.DeepEqual(v, hi) {
+		t.Error("Did not correctly overwrite file", v, hi)
 		return
 	}
 
