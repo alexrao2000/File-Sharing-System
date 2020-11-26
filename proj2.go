@@ -771,11 +771,8 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 // existing file, but only whatever additional information and
 // metadata you need.
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
-	// Find UUID of keys
-	// index_k = userdata.AES_key_indices[filename]
-	// ID_k := userdata.AES_key_storage_keys[filename]
-	// userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
 	const VOLUME_SIZE = 1048576
+	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
 
 	//Load Volume
 	volumes, pad_last, err := LoadVolumes(userdata, filename)
@@ -788,25 +785,17 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	last_volume := volumes[len(volumes)-1] 
 	depadded_volume := DepadAppend(last_volume, pad_last, new_data_len)
 
-	//Add volume_size - pad_last from data to last volume
-	//copy(last_volume[new_data_len:], data[:new_data_len])
-	//new_data = data[new_data_len:]
-
-	//Calculate # of new volumes, create [][]byte to contain new volumes
-	//num_new_volumes := len(new_data) / VOLUME_SIZE
-	//new_volumes := make([]byte, num_new_volumes)
-
 	//Generate new volumes
-	all_data := append(depadded_volume, data...)
-	new_volumes, volumes_encrypted := SplitData(all_data)
+	new_data := append(depadded_volume, data...)
+	new_volumes, new_volumes_encrypted := SplitData(new_data)
 
-	/*
-	for index := 0; index < num_new_volumes; index++ {
-		volume_start :=
-		volume_end :=
-		new_volumes[index] = volume_start:volume_end
+	volumes = append(volumes[:len(volumes) - 1], new_volumes...)
+	volumes_encrypted := make([]Volume, len(volumes))
+	for _, enc_volume := range volumes_encrypted {
+		enc_volume.Ciphertext = make([]byte, ENCRYPTED_VOLUME_SIZE)
+		enc_volume.N_pad = 0
 	}
-	*/
+	volumes_encrypted = append(volumes_encrypted, new_volumes_encrypted...)
 
 	//Store Volumes
 	ID_k := userdata.AES_key_storage_keys[filename]
@@ -814,7 +803,7 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	if err != nil {
 		return err
 	}
-	err = StoreVolumes(new_volumes, volumes_encrypted, filename, userdata, k_file)
+	err = StoreVolumes(volumes, volumes_encrypted, filename, userdata, k_file)
 	if err != nil {
 		return err
 	}

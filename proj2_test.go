@@ -266,9 +266,23 @@ func TestAppend(t *testing.T) {
 	v := []byte("This is a test")
 	u1.StoreFile("file1", v)
 
-	err = u1.AppendFile("file1", []byte("Append this string"))
+	err = u1.AppendFile("file1", []byte(" append this string"))
 	if err != nil {
 		t.Error("Failed to append to file", err)
+		return
+	}
+
+	v, err = u1.LoadFile("file1")
+	if err != nil {
+		t.Error("Failed to download the file from alice", err)
+		return
+	}
+
+	v_appended := []byte("This is a test append this string")
+	u1.StoreFile("file1", v_appended)
+
+	if !reflect.DeepEqual(v, v_appended) {
+		t.Error("Appended file is not the same", v, v_appended)
 		return
 	}
 
@@ -333,9 +347,5 @@ func TestAppend(t *testing.T) {
 		t.Error("User should have lost access and cannot append, something is wrong")
 		return
 	}
-<<<<<<< HEAD
 	*/
 }
-=======
-}
->>>>>>> 0511f57a204cec52e7b685395c21792c4cd74ed3
