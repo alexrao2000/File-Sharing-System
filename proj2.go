@@ -396,8 +396,11 @@ func EncryptAndMACVolume(volume []byte, volume_encrypted_ptr *Volume, index int,
 func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last uint32, err error) {
 	// Get AES keys
 	ID_k, exists_key := userdata.AES_key_storage_keys[filename]
+	if !exists_key {
+		return nil, 0, errors.New(strings.ToTitle("AES key not found"))
+	}
 	k_file, err := GetAESKeys(ID_k, filename, userdata)
-	if err != nil || !exists_key {
+	if err != nil {
 		// userlib.DebugMsg("k_file %v", k_file)
 		return nil, 0, err
 	}
@@ -864,7 +867,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	ID_k := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, filename, userdata)
 	if err != nil {
-		return "", errors.New(strings.ToTitle("File not found!"))
+		return "", err
 	}
 
 	//Retrieve k_pub
