@@ -949,15 +949,27 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 
 	//Check if target user is in direct recipients
 	in_recipients := false
+	var target_index int
 	for index, recipient := range recipients {
     	if recipient == target_username {
             in_recipients = true
-            userdata.Direct_recipients[filename][index] = ""
+            target_index = index
         }
     }
     if !in_recipients {
     	return errors.New("Target user does not have access to file")
     }
+    var new_recipients []string
+	if len(recipients) > 0 {
+		new_recipients = make([]string, len(recipients) - 1)
+		copy(new_recipients[:target_index], recipients[:target_index])
+	    if target_index < len(recipients) - 1 {
+	    	copy(new_recipients[target_index:], recipients[target_index+1:])
+	    }
+	    userdata.Direct_recipients[filename] = new_recipients
+	}
+
+    StoreUser(userdata, userdata.K_password)
     
 	//recipients ! in target //FIXME
 

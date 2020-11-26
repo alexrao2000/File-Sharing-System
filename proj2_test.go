@@ -228,6 +228,7 @@ func TestShare(t *testing.T) {
 	v = []byte("This is a test")
 	// u3.StoreFile("file2", v)
 
+	/*
 	magic_string, err = u1.ShareFile("file1", "carl")
 	if err != nil {
 		t.Error("Failed to share the a file", err)
@@ -244,6 +245,7 @@ func TestShare(t *testing.T) {
 		t.Error("Shared file that does not exist")
 		return
 	}
+	*/
 
 	//Revoke tests
 	// Set up unrevoked u4 & u5
@@ -307,23 +309,12 @@ func TestShare(t *testing.T) {
 
 	// Tests start
 
-	magic_string, err = u1.ShareFile("file1", "bob")
-	if err != nil {
-		t.Error("Failed to share the a file", err)
-		return
-	}
-
 	err = u1.RevokeFile("file3", "carl")
 	if err == nil {
 		t.Error("Revoked file should not exist", err)
 		return
 	}
 
-	err = u1.RevokeFile("file1", "carl")
-	if err != nil {
-		t.Error("Target user is not a direct recipient", err)
-		return
-	}
 	err = u1.RevokeFile("file1", "carl")
 	if err == nil {
 		t.Error("Target user is not a direct recipient")
