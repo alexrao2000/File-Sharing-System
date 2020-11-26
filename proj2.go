@@ -235,6 +235,7 @@ func SplitData(pack []byte) (volumes [][]byte, volumes_encrypted []Volume) {
 // Pad SLICE according to the PKCS #7 scheme,
 // i.e. padding with the number (as a byte) of elements to pad,
 // from PRESENT_LENGTH to TARGET_LENGTH
+// SLICE should be long enough
 // Err if TARGET_LENGTH is no longer than PRESENT_LENGTH is
 func Pad(slice []byte, present_length int, target_length int) []byte {
 	if len(slice) < target_length {
