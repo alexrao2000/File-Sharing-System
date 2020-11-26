@@ -165,12 +165,6 @@ func StoreUser(userdataptr *User, k_password []byte) (err error) {
 		return err
 	}
 
-	_, ok := userlib.DatastoreGet(ID_user)
-	if ok {
-		err = errors.New("User already exists")
-		return err
-	}
-
 	// Encrypt
 
 	iv := userlib.RandomBytes(userlib.AESBlockSize)
@@ -628,6 +622,20 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	byte_username := []byte(username)
 	byte_password := []byte(password)
 
+	hash_username := userlib.Hash(byte_username)
+	hash_username_slice := make([]byte, k_password_len)
+	copy(hash_username_slice, hash_username[:k_password_len])
+
+	ID_user, err := uuid.FromBytes(hash_username_slice)
+	if err != nil {
+		return nil, err
+	}
+
+	_, ok := userlib.DatastoreGet(ID_user)
+	if ok {
+		return nil, errors.New(strings.ToTitle("User already exists"))
+	}
+
 	//userlib.DebugMsg("DEBUG: key gen %s\n", string(byte_username))
 
 	k_password := userlib.Argon2Key(byte_password, byte_username, k_password_len)
@@ -707,8 +715,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 
 	existing_user, ok := userlib.DatastoreGet(ID_user)
 	if ok != true {
-		err = errors.New("User does not exist")
-		return nil, err
+		return nil, errors.New(strings.ToTitle("User does not exist"))
 	}
 
 	//Decryption
@@ -720,8 +727,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 		return nil, err
 	}
 	if !userlib.HMACEqual(stored_hmac, evaluated_hmac) {
-		err = errors.New("Invalid user credentials")
-		return nil, err
+		return nil, errors.New(strings.ToTitle("Invalid user credentials"))
 	}
 	depadded_user := Depad(eu_plaintext)
 	json.Unmarshal(depadded_user, userdataptr)

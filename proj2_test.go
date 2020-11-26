@@ -98,6 +98,22 @@ func TestStorage(t *testing.T) {
 		return
 	}
 
+	u1, err = GetUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error(err)
+		return
+	}
+	u2, err := GetUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error(err)
+		return
+	}
+	if reflect.DeepEqual(u1, u2) {
+		t.Log("User was initialized and got")
+	}
+
 	v := []byte("This is a test")
 	u1.StoreFile("file1", v)
 
@@ -112,7 +128,7 @@ func TestStorage(t *testing.T) {
 	}
 
 	//Custom tests
-	u2, err := InitUser("bob", "rabuf")
+	u2, err = InitUser("bob", "rabuf")
 	if err != nil {
 		t.Error("Failed to initialize user", err)
 		return
