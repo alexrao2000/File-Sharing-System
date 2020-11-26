@@ -32,7 +32,6 @@ import (
 	// Optional. You can remove the "_" there, but please do not touch
 	// anything else within the import bracket.
 	"strconv"
-
 	// if you are looking for fmt, we don't give you fmt, but you can use userlib.DebugMsg.
 	// see someUsefulThings() below:
 )
@@ -68,7 +67,7 @@ func someUsefulThings() {
 	// And a random RSA key.  In this case, ignoring the error
 	// return value
 	var pk userlib.PKEEncKey
-    var sk userlib.PKEDecKey
+	var sk userlib.PKEDecKey
 	pk, sk, _ = userlib.PKEKeyGen()
 	userlib.DebugMsg("Key is %v, %v", pk, sk)
 }
@@ -84,14 +83,14 @@ func bytesToUUID(data []byte) (ret uuid.UUID) {
 
 // The structure definition for a user record
 type User struct {
-	Username string
-	K_password []byte
-	K_private userlib.PKEDecKey
-	K_DS_private userlib.DSSignKey
+	Username             string
+	K_password           []byte
+	K_private            userlib.PKEDecKey
+	K_DS_private         userlib.DSSignKey
 	AES_key_storage_keys map[string]uuid.UUID
 	//AES_key_shared_keys map[string]uuid.UUID
 	Direct_recipients map[string][]string
-	Sharers map[string]string
+	Sharers           map[string]string
 
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
@@ -101,14 +100,14 @@ type User struct {
 // The structure definition for an encrypted volume
 type Volume struct {
 	Ciphertext []byte // 2^30B + 16B of IV
-	MAC []byte
-	N_pad uint32 // number of pads
+	MAC        []byte
+	N_pad      uint32 // number of pads
 }
 
 // The structure definition for a set of a file AES key & its Digital Signature
 type SignedKey struct {
 	PKE_k_file []byte
-	DS_k_file []byte
+	DS_k_file  []byte
 }
 
 // HELPERS start here
@@ -172,7 +171,7 @@ func StoreUser(userdataptr *User, k_password []byte) (err error) {
 
 	// Padding
 	len_user := len(user_struct)
-	pad_len := (len_user / 16 + 1) * 16
+	pad_len := (len_user/16 + 1) * 16
 	//userlib.DebugMsg("size: %v", len(user_struct))
 	padded_struct := make([]byte, pad_len)
 	copy(padded_struct[:], user_struct)
@@ -195,7 +194,7 @@ func StoreUser(userdataptr *User, k_password []byte) (err error) {
 func GenerateStorageKey() (key uuid.UUID, err error) {
 	const trials = 10
 	ok := true
-	for i := 0; ok && i < trials; i ++ {
+	for i := 0; ok && i < trials; i++ {
 		key = uuid.New()
 		_, ok = userlib.DatastoreGet(key)
 	}
@@ -210,10 +209,10 @@ func SplitData(pack []byte) (volumes [][]byte, volumes_encrypted []Volume) {
 	const VOLUME_SIZE = 1048576 // 2^20 bytes
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16
 	data_size := len(pack) // bytes
-	n_volumes := data_size / VOLUME_SIZE + 1
+	n_volumes := data_size/VOLUME_SIZE + 1
 	volumes = make([][]byte, n_volumes)
 	volumes_encrypted = make([]Volume, n_volumes)
-	for i := 0; i <= n_volumes - 2; i++ {
+	for i := 0; i <= n_volumes-2; i++ {
 		index_starting := i * VOLUME_SIZE
 		volumes[i] = pack[index_starting : index_starting+VOLUME_SIZE]
 		volumes_encrypted[i].N_pad = 0
@@ -222,12 +221,12 @@ func SplitData(pack []byte) (volumes [][]byte, volumes_encrypted []Volume) {
 	remainder_data_size := data_size % VOLUME_SIZE
 	last_volume := make([]byte, VOLUME_SIZE)
 	if remainder_data_size > 0 && n_volumes > 0 {
-		copy(last_volume[0:], pack[(n_volumes - 1) * VOLUME_SIZE:])
+		copy(last_volume[0:], pack[(n_volumes-1)*VOLUME_SIZE:])
 	}
 	Pad(last_volume[:], remainder_data_size, VOLUME_SIZE) //FIXME
 	if n_volumes > 0 {
-		volumes_encrypted[n_volumes - 1].N_pad = uint32(VOLUME_SIZE - remainder_data_size)
-		volumes[n_volumes - 1] = last_volume
+		volumes_encrypted[n_volumes-1].N_pad = uint32(VOLUME_SIZE - remainder_data_size)
+		volumes[n_volumes-1] = last_volume
 	}
 	return volumes, volumes_encrypted
 }
@@ -267,18 +266,17 @@ func Depad(slice []byte) []byte {
 //Depad for AppendFile
 func DepadAppend(slice []byte, pad_last uint32, new_data_len uint32) []byte {
 	for index := len(slice) - 1; index >= int(new_data_len); index-- {
-		if int(slice[index]) != int(pad_last) % 256 {
+		if int(slice[index]) != int(pad_last)%256 {
 			userlib.DebugMsg("Can't depad unpadded byte array")
 		}
 	}
 	return slice[:int(new_data_len)]
 }
 
-
 // Front pad & PKE PLAINTEXT w/ KEY to prevent IND-CPA
 func PKEEncPadded(key userlib.PKEEncKey, plaintext []byte) (ciphertext []byte, err error) {
 	const k_password_len = 16
-	front_padded := make([]byte, int(k_password_len) + len(plaintext))
+	front_padded := make([]byte, int(k_password_len)+len(plaintext))
 	copy(front_padded[:k_password_len], userlib.RandomBytes(int(k_password_len)))
 	copy(front_padded[k_password_len:], plaintext)
 	return userlib.PKEEnc(key, front_padded)
@@ -370,6 +368,12 @@ func StoreVolumes(volumes [][]byte, volumes_encrypted []Volume, filename string,
 // Encrypt and MAC VOLUME at index INDEX in the volume array with AES key K_FILE
 func EncryptAndMACVolume(volume []byte, volume_encrypted_ptr *Volume, index int, k_file []byte) (err error) {
 	const k_password_len uint32 = 16
+	const VOLUME_SIZE = 1048576 // 2^20 bytes
+
+	if len(volume) != VOLUME_SIZE {
+		userlib.DebugMsg("Plaintext length %v", len(volume))
+		return errors.New(strings.ToTitle("Wrong plaintext length"))
+	}
 
 	index_string := strconv.Itoa(index)
 
@@ -443,7 +447,7 @@ func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last ui
 }
 
 /* Verify and Decrypt VOLUME_ENCRYPTED at INDEX in the volume array
- that is N_VOLUMES long with key K_FILE */
+that is N_VOLUMES long with key K_FILE */
 func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k_file []byte) (volume []byte, pad_last uint32, err error) {
 	const VOLUME_SIZE = 1048576 // 2^20 bytes
 	const k_password_len uint32 = 16
@@ -451,13 +455,13 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 
 	// Check length
 	if len(volume_encrypted.Ciphertext) != ENCRYPTED_VOLUME_SIZE {
-		userlib.DebugMsg("Ciphertext length", len(volume_encrypted.Ciphertext))
+		userlib.DebugMsg("Ciphertext length %v", len(volume_encrypted.Ciphertext))
 		return nil, 0, errors.New(strings.ToTitle("Wrong ciphertext length"))
 	}
 
 	// Check padding
 	pad_last = 0
-	if index == n_volumes - 1 {
+	if index == n_volumes-1 {
 		pad_last = volume_encrypted.N_pad
 	} else if volume_encrypted.N_pad != 0 {
 		return nil, 0, errors.New(strings.ToTitle("Non-last volume has non-zero padding"))
@@ -479,7 +483,7 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 		userlib.DebugMsg("%v", err)
 		return nil, 0, err
 	}
-	if !userlib.HMACEqual(volume_encrypted.MAC, MAC){
+	if !userlib.HMACEqual(volume_encrypted.MAC, MAC) {
 		return nil, 0, errors.New(strings.ToTitle("Verification failed"))
 	}
 
@@ -497,7 +501,7 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 
 	if pad_last != 0 {
 		for i := VOLUME_SIZE - pad_last; i < VOLUME_SIZE; i++ {
-			if volume[i] != byte(pad_last % 256) {
+			if volume[i] != byte(pad_last%256) {
 				return nil, 0, errors.New(strings.ToTitle("Padding mismatch"))
 			}
 		}
@@ -505,7 +509,7 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 
 	if pad_last != 0 {
 		for i := VOLUME_SIZE - pad_last; i < VOLUME_SIZE; i++ {
-			if volume[i] != byte(pad_last % 256) {
+			if volume[i] != byte(pad_last%256) {
 				return nil, 0, errors.New(strings.ToTitle("Padding mismatch"))
 			}
 		}
@@ -514,7 +518,7 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 }
 
 // This handles panics and should print the error
-func HandlePanics()  {
+func HandlePanics() {
 	if recovery := recover(); recovery != nil {
 		userlib.DebugMsg("DO NOT PANIC: %v", recovery)
 	}
@@ -784,35 +788,41 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 		return err
 	}
 
-	//Depad the last volume using pad_last
-	new_data_len := VOLUME_SIZE - pad_last
-	last_volume := volumes[len(volumes)-1] 
-	depadded_volume := DepadAppend(last_volume, pad_last, new_data_len)
+	n_volumes := len(volumes) - 1
+	var depadded_volume []byte
+	var volumes_except_last [][]byte
+	if n_volumes > 0 {
+		//Depad the last volume using pad_last
+		new_data_len := VOLUME_SIZE - pad_last
+		last_volume := volumes[n_volumes-1]
+		depadded_volume = DepadAppend(last_volume, pad_last, new_data_len)
+		volumes_except_last = volumes[:len(volumes)-1]
+	}
 
 	//Generate new volumes
 	new_data := append(depadded_volume, data...)
 	new_volumes, new_volumes_encrypted := SplitData(new_data)
 
 	//Generate volumes_encrypted and volumes
-	volumes_encrypted := make([]Volume, len(volumes)-1)
-	volumes = append(volumes[:len(volumes) - 1], new_volumes...)
+	volumes = append(volumes_except_last, new_volumes...)
+	volumes_encrypted := make([]Volume, len(volumes))
 	for _, enc_volume := range volumes_encrypted {
 		enc_volume.Ciphertext = make([]byte, ENCRYPTED_VOLUME_SIZE)
 		enc_volume.N_pad = 0
 	}
 	volumes_encrypted = append(volumes_encrypted, new_volumes_encrypted...)
-
 	for _, enc_volume := range volumes_encrypted {
 		userlib.DebugMsg("length: %v", len(data)+len(depadded_volume))
 		userlib.DebugMsg("n_pad: %v", enc_volume.N_pad)
-		userlib.DebugMsg("size: %v", VOLUME_SIZE)
 	}
-	
+
 	//Pad last volume
-	last_volume = volumes[len(volumes)-1]
-	padded_volume := make([]byte, VOLUME_SIZE)
-	copy(padded_volume[:len(last_volume)], last_volume)
-	volumes[len(volumes)-1] = Pad(padded_volume, len(last_volume), VOLUME_SIZE)
+	if len(volumes) > 0 {
+		last_volume := volumes[len(volumes)-1]
+		padded_volume := make([]byte, VOLUME_SIZE)
+		copy(padded_volume[:len(last_volume)], last_volume)
+		volumes[len(volumes)-1] = Pad(padded_volume, len(last_volume), VOLUME_SIZE)
+	}
 
 	//Store Volumes
 	ID_k := userdata.AES_key_storage_keys[filename]
@@ -844,14 +854,14 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	}
 	// Combine volumes
 	n_volumes := len(volumes)
-	data_size := n_volumes * VOLUME_SIZE - int(pad_last)
+	data_size := n_volumes*VOLUME_SIZE - int(pad_last)
 	packaged_data := make([]byte, data_size)
-	for i := 0; i <= n_volumes - 2; i++ {
+	for i := 0; i <= n_volumes-2; i++ {
 		index_starting := i * VOLUME_SIZE
-		copy(packaged_data[index_starting : index_starting + VOLUME_SIZE], volumes[i])
+		copy(packaged_data[index_starting:index_starting+VOLUME_SIZE], volumes[i])
 	}
 	if n_volumes >= 1 && VOLUME_SIZE >= pad_last {
-		copy(packaged_data[(n_volumes - 1) * VOLUME_SIZE:], volumes[n_volumes - 1][:VOLUME_SIZE - pad_last])
+		copy(packaged_data[(n_volumes-1)*VOLUME_SIZE:], volumes[n_volumes-1][:VOLUME_SIZE-pad_last])
 	} else if VOLUME_SIZE < pad_last {
 		return nil, errors.New(strings.ToTitle("Padding longer than VOLUME_SIZE"))
 	}
@@ -939,7 +949,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 
 	//Check if filename exists already
 	if _, ok := userdata.AES_key_storage_keys[filename]; ok {
-    	return errors.New(strings.ToTitle("File with that name already exists!"))
+		return errors.New(strings.ToTitle("File with that name already exists!"))
 	}
 
 	var token SignedKey
@@ -979,12 +989,12 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	userdata.AES_key_storage_keys[filename] = ID_k
 	userdata.Sharers[filename] = sender
 	/*
-	//Add new file to map
-	k_file, err := GetAESKeys(ID_k, userdata)
-	if err != nil {
-		return err
-	}
-	StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
+		//Add new file to map
+		k_file, err := GetAESKeys(ID_k, userdata)
+		if err != nil {
+			return err
+		}
+		StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
 	*/
 
 	StoreUser(userdata, userdata.K_password)
