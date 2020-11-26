@@ -797,6 +797,12 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	}
 	volumes_encrypted = append(volumes_encrypted, new_volumes_encrypted...)
 
+	//Pad last volume
+	last_volume = volumes[len(volumes)-1]
+	padded_volume := make([]byte, VOLUME_SIZE)
+	copy(padded_volume[:len(last_volume)], last_volume)
+	volumes[len(volumes)-1] = Pad(padded_volume, len(last_volume), VOLUME_SIZE)
+
 	//Store Volumes
 	ID_k := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, filename, userdata)
