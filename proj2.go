@@ -863,7 +863,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 		return "", err
 	}
 
-	//Add recipient to direct recipients if user owns file
+	//Add recipient to direct recipients
 	direct_recipients, exists := userdata.Direct_recipients[filename]
 	if exists {
 		userdata.Direct_recipients[filename] = append(direct_recipients, recipient)
@@ -923,10 +923,18 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 
 	userdata.AES_key_storage_keys[filename] = ID_k
 	userdata.Sharers[filename] = sender
+	/*
+	//Add new file to map
+	k_file, err := GetAESKeys(ID_k, userdata)
+	if err != nil {
+		return err
+	}
+	StoreAESKeys(ID_k, k_file, userdata, userdata.Username)
+	*/
 
 	StoreUser(userdata, userdata.K_password)
 
-	return nil
+	return err
 }
 
 // Removes target user's access.
@@ -941,14 +949,16 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 
 	//Check if target user is in direct recipients
 	in_recipients := false
-	for _, recipient := range recipients {
+	for index, recipient := range recipients {
     	if recipient == target_username {
             in_recipients = true
+            userdata.Direct_recipients[filename][index] = ""
         }
     }
     if !in_recipients {
     	return errors.New("Target user does not have access to file")
     }
+    
 	//recipients ! in target //FIXME
 
 	//Encrypt and Authenticate plaintext

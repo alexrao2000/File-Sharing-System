@@ -253,6 +253,7 @@ func TestShare(t *testing.T) {
 		return
 	}
 
+	//Test if shared file is the same as original
 	magic_string, err = u1.ShareFile("file1", "Delta")
 	if err != nil {
 		t.Error("Failed to share the a file", err)
@@ -265,7 +266,7 @@ func TestShare(t *testing.T) {
 		return
 	}
 
-	v4, err := u2.LoadFile("file4")
+	v4, err := u4.LoadFile("file4")
 	if err != nil {
 		t.Error("Failed to download the file after sharing", err)
 		return
@@ -294,7 +295,7 @@ func TestShare(t *testing.T) {
 	}
 
 
-	v5, err := u2.LoadFile("file5")
+	v5, err := u5.LoadFile("file5")
 	if err != nil {
 		t.Error("Failed to download the file after sharing", err)
 		return
@@ -319,8 +320,13 @@ func TestShare(t *testing.T) {
 	}
 
 	err = u1.RevokeFile("file1", "carl")
-	if err == nil {
+	if err != nil {
 		t.Error("Target user is not a direct recipient", err)
+		return
+	}
+	err = u1.RevokeFile("file1", "carl")
+	if err == nil {
+		t.Error("Target user is not a direct recipient")
 		return
 	}
 
