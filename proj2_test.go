@@ -271,23 +271,6 @@ func TestShare(t *testing.T) {
 		t.Error("Failed to initialize user", err)
 		return
 	}
-
-	u1, err = GetUser("alice", "fubar")
-	if err != nil {
-		// t.Error says the test fails
-		t.Error(err)
-		return
-	}
-	u2, err := GetUser("alice", "fubar")
-	if err != nil {
-		// t.Error says the test fails
-		t.Error(err)
-		return
-	}
-	if reflect.DeepEqual(u1, u2) {
-		t.Log("User was initialized and got")
-	}
-
 	u2, err2 := InitUser("bob", "foobar")
 	if err2 != nil {
 		t.Error("Failed to initialize bob", err2)
@@ -332,6 +315,12 @@ func TestShare(t *testing.T) {
 		return
 	}
 
+	err = u1.RevokeFile("file1", "carl")
+	if err == nil {
+		t.Error("Target user is not a direct recipient", err)
+		return
+	}
+
 	//Custom tests
 	magic_string, err = u2.ShareFile("file1", "carl")
 	if err == nil {
@@ -354,6 +343,7 @@ func TestShare(t *testing.T) {
 	v = []byte("This is a test")
 	// u3.StoreFile("file2", v)
 
+	/*
 	magic_string, err = u1.ShareFile("file1", "carl")
 	if err != nil {
 		t.Error("Failed to share the a file", err)
@@ -370,8 +360,70 @@ func TestShare(t *testing.T) {
 		t.Error("Shared file that does not exist")
 		return
 	}
+	*/
 
 	//Revoke tests
+	// Set up unrevoked u4 & u5
+	u4, err := InitUser("Delta", "River !")
+	if err != nil {
+		t.Error("Failed to initialize user", err)
+		return
+	}
+
+	//Test if shared file is the same as original
+	magic_string, err = u1.ShareFile("file1", "Delta")
+	if err != nil {
+		t.Error("Failed to share the a file", err)
+		return
+	}
+
+	err = u4.ReceiveFile("file4", "alice", magic_string)
+	if err != nil {
+		t.Error("Sharing failed", err)
+		return
+	}
+
+	v4, err := u4.LoadFile("file4")
+	if err != nil {
+		t.Error("Failed to download the file after sharing", err)
+		return
+	}
+	if !reflect.DeepEqual(v, v4) {
+		t.Error("Shared file is not the same", v, v4)
+		return
+	}
+
+	u5, err := InitUser("Echo", "Act 1")
+	if err != nil {
+		t.Error("Failed to initialize user", err)
+		return
+	}
+
+	magic_string, err = u4.ShareFile("file4", "Echo")
+	if err != nil {
+		t.Error("Failed to share the a file", err)
+		return
+	}
+
+	err = u5.ReceiveFile("file5", "Delta", magic_string)
+	if err != nil {
+		t.Error("Sharing failed", err)
+		return
+	}
+
+
+	v5, err := u5.LoadFile("file5")
+	if err != nil {
+		t.Error("Failed to download the file after sharing", err)
+		return
+	}
+	if !reflect.DeepEqual(v, v5) {
+		t.Error("Shared file is not the same", v, v5)
+		return
+	}
+
+	// Tests start
+
 	err = u1.RevokeFile("file3", "carl")
 	if err == nil {
 		t.Error("Revoked file should not exist", err)
@@ -420,17 +472,33 @@ func TestShare(t *testing.T) {
 		return
 	}
 
-	_, err = InitUser("delta", "fubar")
-	if err != nil {
-		t.Error("Failed to initialize user", err)
-		return
-	}
-
-	_, err = u3.ShareFile("file3", "delta")
+	_, err = u3.ShareFile("file3", "Delta")
 	if err == nil {
 		t.Error("Tree-revoked file still shareable", err)
 		return
 	}
+
+	// Should not revoke from other recipients
+	v4, err = u2.LoadFile("file4")
+	if err != nil {
+		t.Error("Failed to download the file after revoking someone else", err)
+		return
+	}
+	if !reflect.DeepEqual(v, v4) {
+		t.Error("Shared file is not the same", v, v4)
+		return
+	}
+
+	v5, err = u2.LoadFile("file5")
+	if err != nil {
+		t.Error("Failed to download the file as a tree recipient after revoking someone else", err)
+		return
+	}
+	if !reflect.DeepEqual(v, v5) {
+		t.Error("Shared file is not the same", v, v5)
+		return
+	}
+
 }
 
 func TestAppend(t *testing.T) {
@@ -464,7 +532,7 @@ func TestAppend(t *testing.T) {
 	v_app := []byte("This is a testAppend this string")
 
 	if !reflect.DeepEqual(v, v_app) {
-		t.Error("Appending doesn't work", v, v_app)
+		t.Error("Appending doesn't work", string(v), string(v_app))
 		return
 	}
 
