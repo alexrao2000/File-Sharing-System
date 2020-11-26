@@ -179,6 +179,32 @@ func TestStorage(t *testing.T) {
 		return
 	}
 
+	//Store with two instances of the same user
+	u1, err = GetUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error(err)
+		return
+	}
+	u2, err = GetUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error(err)
+		return
+	}
+	u1.StoreFile("file1", v)
+	u2.StoreFile("file2", v2)
+	v, err2 = u2.LoadFile("file1")
+	if err2 != nil {
+		t.Error("Failed load file with two instances of same user", err2)
+		return
+	}
+	v2, err2 = u1.LoadFile("file2")
+	if err2 != nil {
+		t.Error("Failed load file with two instances of same user", err2)
+		return
+	}
+
 	// Empty filename
 	u1.StoreFile("", v)
 
