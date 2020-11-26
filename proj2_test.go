@@ -264,7 +264,7 @@ func TestShare(t *testing.T) {
 		return
 	}
 
-	_, err = u2.AppendFile("file2", v)
+	err = u2.AppendFile("file2", v)
 	if err == nil {
 		t.Error("Revoked file still modifiable", err)
 		return
@@ -282,13 +282,13 @@ func TestShare(t *testing.T) {
 		return
 	}
 
-	_, err = u3.AppendFile("file3", v)
+	err = u3.AppendFile("file3", v)
 	if err == nil {
 		t.Error("Tree-revoked file still modifiable", err)
 		return
 	}
 
-	u4, err := InitUser("delta", "fubar")
+	_, err = InitUser("delta", "fubar")
 	if err != nil {
 		t.Error("Failed to initialize user", err)
 		return
