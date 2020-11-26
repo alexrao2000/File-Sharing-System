@@ -276,10 +276,6 @@ func PKEEncPadded(key userlib.PKEEncKey, plaintext []byte) (ciphertext []byte, e
 func PKEDecPadded(key userlib.PKEDecKey, ciphertext []byte) (plaintext []byte, err error) {
 	const k_password_len uint32 = 16
 	plaintext, err = userlib.PKEDec(key, ciphertext)
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return
-	}
 	if len(plaintext) < int(k_password_len) {
 		return nil, errors.New(strings.ToTitle("PKE plaintext shorter than pad"))
 	}
@@ -303,7 +299,7 @@ func bytesEqual(a, b []byte) bool {
 
 // Encrypt, authenticate, & store segmented VOLUMES
 // w/ key K_FILE & USERDATA's credentials
-func StoreVolumes(volumes [][]byte, volumes_encrypted []Volume, filename string, userdata *User, k_file []byte, ID_k uuid.UUID) (err error) {
+func StoreVolumes(volumes [][]byte, volumes_encrypted []Volume, filename string, userdata *User, k_file []byte) (err error) {
 	const k_password_len uint32 = 16
 
 	for index, volume := range volumes {
@@ -313,14 +309,20 @@ func StoreVolumes(volumes [][]byte, volumes_encrypted []Volume, filename string,
 			return err
 		}
 	}
-	userlib.DebugMsg("STORED %v", ID_k)
-	stored, _ := json.Marshal(volumes_encrypted)
+	// Fetch public keys
+	k_pubkey, _ := StorageKeysPublicKey(userdata.Username)
+	k_pub, ok := userlib.KeystoreGet(k_pubkey)
+	if !ok {
+		return errors.New(strings.ToTitle("Public key fetch failed"))
+	}
 
 	// Store data
+	ID_k, err := GenerateStorageKey()
 	if err != nil {
 		userlib.DebugMsg("%v", err)
 		return
 	}
+	stored, _ := json.Marshal(volumes_encrypted)
 	hash_ID_k := userlib.Hash([]byte(ID_k.String()))
 	ID_file, err := uuid.FromBytes(hash_ID_k[:16])
 	if err != nil {
@@ -328,6 +330,28 @@ func StoreVolumes(volumes [][]byte, volumes_encrypted []Volume, filename string,
 		return
 	}
 	userlib.DatastoreSet(ID_file, stored)
+
+	// PKE & Publish AES key
+	pke_k_file, err := PKEEncPadded(k_pub, k_file)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return
+	}
+	ds_k_file, err := userlib.DSSign(userdata.K_DS_private, pke_k_file)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return
+	}
+	userdata.AES_key_storage_keys[filename] = ID_k
+	// userdata.AES_key_indices[filename] = 0
+	var signed_key SignedKey
+	signed_key.PKE_k_file = pke_k_file
+	signed_key.DS_k_file = ds_k_file
+	signed_keys := make(map[string]SignedKey)
+	signed_keys[userdata.Username] = signed_key
+	StoreUser(userdata, userdata.K_password)
+	signed_keys_marshal, _ := json.Marshal(signed_keys)
+	userlib.DatastoreSet(ID_k, signed_keys_marshal)
 	return nil
 }
 
@@ -744,56 +768,24 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	}
 
 	// Initialize direct recipients
-	_, exists := userdata.Direct_recipients[filename]
-	if !exists {
-		var recipients []string
-		userdata.Direct_recipients[filename] = recipients
-	}
+	var recipients []string
+	userdata.Direct_recipients[filename] = recipients
+
+	// Encoding
+	//packaged_data, _ := json.Marshal(data)
+	// userlib.DebugMsg("Packaged data %v", packaged_data[:30])
 
 	// Splitting
 	volumes, volumes_encrypted := SplitData(data)
 
 	// Encrypt & authenticate
 	k_file := userlib.RandomBytes(int(k_password_len))
-	ID_k, err := GenerateStorageKey()
+	// var k_volume [k_password_len]byte
+	err = StoreVolumes(volumes[:], volumes_encrypted[:], filename, userdata, k_file)
 	if err != nil {
 		userlib.DebugMsg("%v", err)
 		return
 	}
-
-	err = StoreVolumes(volumes[:], volumes_encrypted[:], filename, userdata, k_file, ID_k)
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return
-	}
-
-	// Fetch public keys
-	k_pubkey, _ := StorageKeysPublicKey(userdata.Username)
-	k_pub, ok := userlib.KeystoreGet(k_pubkey)
-	if !ok {
-		userlib.DebugMsg("%v", errors.New(strings.ToTitle("Public key fetch failed")))
-	}
-
-	// PKE & Publish AES key
-	pke_k_file, err := PKEEncPadded(k_pub, k_file)
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return
-	}
-	ds_k_file, err := userlib.DSSign(userdata.K_DS_private, pke_k_file)
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return
-	}
-	var signed_key SignedKey
-	signed_key.PKE_k_file = pke_k_file
-	signed_key.DS_k_file = ds_k_file
-	signed_keys := make(map[string]SignedKey)
-	signed_keys[userdata.Username] = signed_key
-	StoreUser(userdata, userdata.K_password)
-	signed_keys_marshal, _ := json.Marshal(signed_keys)
-	userlib.DatastoreSet(ID_k, signed_keys_marshal)
-	userdata.AES_key_storage_keys[filename] = ID_k
 	return
 }
 
