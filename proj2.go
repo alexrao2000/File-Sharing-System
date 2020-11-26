@@ -934,10 +934,22 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 	const k_password_len uint32 = 16
 
 	//Check if user owns file
-	recipient, exists := userdata.Direct_recipients[filename]
+	recipients, exists := userdata.Direct_recipients[filename]
 	if !exists {
 		return errors.New(strings.ToTitle("User does not own file!"))
-	} else if recipient ! in target //FIXME
+	}
+
+	//Check if target user is in direct recipients
+	in_recipients := false
+	for _, recipient := range recipients {
+    	if recipient == target_username {
+            in_recipients = true
+        }
+    }
+    if !in_recipients {
+    	return errors.New("Target user does not have access to file")
+    }
+	//recipients ! in target //FIXME
 
 	//Encrypt and Authenticate plaintext
 	k_file := userlib.RandomBytes(int(k_password_len))

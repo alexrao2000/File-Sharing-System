@@ -247,7 +247,7 @@ func TestShare(t *testing.T) {
 
 	//Revoke tests
 	// Set up unrevoked u4 & u5
-	u4, err = InitUser("Delta", "River !")
+	u4, err := InitUser("Delta", "River !")
 	if err != nil {
 		t.Error("Failed to initialize user", err)
 		return
@@ -265,7 +265,7 @@ func TestShare(t *testing.T) {
 		return
 	}
 
-	v4, err = u2.LoadFile("file4")
+	v4, err := u2.LoadFile("file4")
 	if err != nil {
 		t.Error("Failed to download the file after sharing", err)
 		return
@@ -275,7 +275,7 @@ func TestShare(t *testing.T) {
 		return
 	}
 
-	u5, err = InitUser("Echo", "Act 1")
+	u5, err := InitUser("Echo", "Act 1")
 	if err != nil {
 		t.Error("Failed to initialize user", err)
 		return
@@ -294,7 +294,7 @@ func TestShare(t *testing.T) {
 	}
 
 
-	v5, err = u2.LoadFile("file5")
+	v5, err := u2.LoadFile("file5")
 	if err != nil {
 		t.Error("Failed to download the file after sharing", err)
 		return
