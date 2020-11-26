@@ -789,8 +789,9 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	new_data := append(depadded_volume, data...)
 	new_volumes, new_volumes_encrypted := SplitData(new_data)
 
+	//Generate volumes_encrypted
+	volumes_encrypted := make([]Volume, len(volumes)-1)
 	volumes = append(volumes[:len(volumes) - 1], new_volumes...)
-	volumes_encrypted := make([]Volume, len(volumes))
 	for _, enc_volume := range volumes_encrypted {
 		enc_volume.Ciphertext = make([]byte, ENCRYPTED_VOLUME_SIZE)
 		enc_volume.N_pad = 0
