@@ -464,7 +464,7 @@ func TestAppend(t *testing.T) {
 	v_app := []byte("This is a testAppend this string")
 
 	if !reflect.DeepEqual(v, v_app) {
-		t.Error("Appending doesn't work", v, v_app)
+		t.Error("Appending doesn't work", string(v), string(v_app))
 		return
 	}
 
