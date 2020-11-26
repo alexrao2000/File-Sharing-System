@@ -91,6 +91,7 @@ type User struct {
 	AES_key_storage_keys map[string]uuid.UUID
 	//AES_key_shared_keys map[string]uuid.UUID
 	Direct_recipients map[string][]string
+	Sharers map[string]string
 
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
@@ -258,6 +259,25 @@ func Depad(slice []byte) []byte {
 	return slice[:last_val]
 }
 
+// Front pad & PKE PLAINTEXT w/ KEY to prevent IND-CPA
+func PKEEncPadded(key userlib.PKEEncKey, plaintext []byte) (ciphertext []byte, err error) {
+	const k_password_len = 16
+	front_padded := make([]byte, int(k_password_len) + len(plaintext))
+	copy(front_padded[:k_password_len], userlib.RandomBytes(int(k_password_len)))
+	copy(front_padded[k_password_len:], plaintext)
+	return userlib.PKEEnc(key, front_padded)
+}
+
+// PKE decrypt front-padded CIPHERTEXT w/ KEY
+func PKEDecPadded(key userlib.PKEDecKey, ciphertext []byte) (plaintext []byte, err error) {
+	const k_password_len uint32 = 16
+	plaintext, err = userlib.PKEDec(key, ciphertext)
+	if len(plaintext) < int(k_password_len) {
+		return nil, errors.New(strings.ToTitle("PKE plaintext shorter than pad"))
+	}
+	return plaintext[k_password_len:], err
+}
+
 /*
 //Returns true if two byte slices are equal, false otherwise
 func bytesEqual(a, b []byte) bool {
@@ -308,10 +328,7 @@ func StoreVolumes(volumes [][]byte, volumes_encrypted []Volume, filename string,
 	userlib.DatastoreSet(ID_file, stored)
 
 	// PKE & Publish AES key
-	k_file_front_padded := make([]byte, k_password_len * 2)
-	copy(k_file_front_padded[:k_password_len], userlib.RandomBytes(int(k_password_len)))
-	copy(k_file_front_padded[k_password_len:], k_file)
-	pke_k_file, err := userlib.PKEEnc(k_pub, k_file_front_padded)
+	pke_k_file, err := PKEEncPadded(k_pub, k_file)
 	if err != nil {
 		userlib.DebugMsg("%v", err)
 		return
@@ -374,9 +391,9 @@ func EncryptAndMACVolume(volume []byte, volume_encrypted_ptr *Volume, index int,
 // Load, verify, & decrypt volumes of FILENAME with USERDATA's credentials
 func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last uint32, err error) {
 	// Get AES keys
-	ID_k, exists := userdata.AES_key_storage_keys[filename]
-	k_file, err := GetAESKeys(ID_k, userdata)
-	if err != nil || !exists {
+	ID_k, exists_key := userdata.AES_key_storage_keys[filename]
+	k_file, err := GetAESKeys(ID_k, filename, userdata)
+	if err != nil || !exists_key {
 		// userlib.DebugMsg("k_file %v", k_file)
 		return nil, 0, err
 	}
@@ -488,7 +505,7 @@ func HandlePanics()  {
 }
 
 // GET AES keys from Datastore at ID_K with USERDATA's credentials
-func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
+func GetAESKeys(ID_k uuid.UUID, filename string, userdata *User) ([]byte, error) {
 
 	m_keys, ok := userlib.DatastoreGet(ID_k)
 	if !ok {
@@ -500,7 +517,14 @@ func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
 	// userlib.DebugMsg("signed_keys", signed_keys)
 	signed_key := signed_keys[userdata.Username]
 
-	_, k_DSkey := StorageKeysPublicKey(userdata.Username)
+	sharer, exists := userdata.Sharers[filename]
+	var signer string
+	if exists {
+		signer = sharer
+	} else {
+		signer = userdata.Username
+	}
+	_, k_DSkey := StorageKeysPublicKey(signer)
 	k_DS_pub, ok := userlib.KeystoreGet(k_DSkey)
 	if !ok {
 		return nil, errors.New(strings.ToTitle("No DS key found!"))
@@ -515,16 +539,15 @@ func GetAESKeys(ID_k uuid.UUID, userdata *User) ([]byte, error) {
 	}
 
 	pke_k_file := signed_key.PKE_k_file
-	k_file_front_padded, err := userlib.PKEDec(userdata.K_private, pke_k_file)
+	k_file, err := PKEDecPadded(userdata.K_private, pke_k_file)
 	if err != nil {
 		return nil, err
 	}
-
-	k_file := k_file_front_padded[16:]
 	return k_file, nil
 
 }
 
+// Store K_FILE on Datastore at ID_K for RECIPIENT w/ USERDATA's credentials
 func StoreAESKeys(ID_k uuid.UUID, k_file []byte, userdata *User, recipient string) error {
 
 	m_keys, ok := userlib.DatastoreGet(ID_k)
@@ -541,7 +564,7 @@ func StoreAESKeys(ID_k uuid.UUID, k_file []byte, userdata *User, recipient strin
 	k_DS_private := userdata.K_DS_private
 
 	//Sign and Encrypt
-	enc_k_file, err := userlib.PKEEnc(k_pub, k_file)
+	enc_k_file, err := PKEEncPadded(k_pub, k_file) //FIXME
 	if err != nil {
 		return err
 	}
@@ -607,6 +630,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	userdata.AES_key_storage_keys = make(map[string]uuid.UUID)
 	//userdata.AES_key_shared_keys = make(map[string]uuid.UUID)
 	userdata.Direct_recipients = make(map[string][]string)
+	userdata.Sharers = make(map[string]string)
 
 	//store public keys
 	k_pubkey, k_DSkey := StorageKeysPublicKey(username)
@@ -797,7 +821,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 
 	//Retrieve k_file
 	ID_k := userdata.AES_key_storage_keys[filename]
-	k_file, err := GetAESKeys(ID_k, userdata)
+	k_file, err := GetAESKeys(ID_k, filename, userdata)
 	if err != nil {
 		return "", errors.New(strings.ToTitle("File not found!"))
 	}
@@ -818,7 +842,7 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	if err != nil {
 		return "", err
 	}
-	enc_ID_k, err := userlib.PKEEnc(k_pub, bytes_ID_k)
+	enc_ID_k, err := PKEEncPadded(k_pub, bytes_ID_k)
 	if err != nil {
 		return "", errors.New(strings.ToTitle("File not found!"))
 	}
@@ -884,7 +908,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	if err != nil {
 		return err
 	}
-	bytes_ID_k, err := userlib.PKEDec(k_private, token.PKE_k_file)
+	bytes_ID_k, err := PKEDecPadded(k_private, token.PKE_k_file)
 	if err != nil {
 		return err
 	}
@@ -894,6 +918,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	}
 
 	userdata.AES_key_storage_keys[filename] = ID_k
+	userdata.Sharers[filename] = sender
 	/*
 	//Add new file to map
 	k_file, err := GetAESKeys(ID_k, userdata)
