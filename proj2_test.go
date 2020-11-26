@@ -323,6 +323,19 @@ func TestAppend(t *testing.T) {
 		return
 	}
 
+	v, err = u1.LoadFile("file1")
+	if err != nil {
+		t.Error("File failed to load", err)
+		return
+	}
+
+	v_app := []byte("This is a testAppend this string")
+
+	if !reflect.DeepEqual(v, v_app) {
+		t.Error("Appending doesn't work", v, v_app)
+		return
+	}
+
 	err = u1.AppendFile("file2", []byte("Append this string"))
 	if err == nil {
 		t.Error("User should not be able to append to file that does not exist")
@@ -355,6 +368,11 @@ func TestAppend(t *testing.T) {
 	err = u2.ReceiveFile("file2", "alice", magic_string)
 	if err != nil {
 		t.Error("Failed to receive the share message", err)
+		return
+	}
+	v, err = u1.LoadFile("file1")
+	if err != nil {
+		t.Error("File failed to load", err)
 		return
 	}
 	v2, err = u2.LoadFile("file2")
