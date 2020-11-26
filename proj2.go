@@ -748,11 +748,11 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	userdata.Direct_recipients[filename] = recipients
 
 	// Encoding
-	packaged_data, _ := json.Marshal(data)
+	//packaged_data, _ := json.Marshal(data)
 	// userlib.DebugMsg("Packaged data %v", packaged_data[:30])
 
 	// Splitting
-	volumes, volumes_encrypted := SplitData(packaged_data)
+	volumes, volumes_encrypted := SplitData(data)
 
 	// Encrypt & authenticate
 	k_file := userlib.RandomBytes(int(k_password_len))
@@ -852,12 +852,12 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 		return nil, errors.New(strings.ToTitle("Padding longer than VOLUME_SIZE"))
 	}
 
-	err = json.Unmarshal(packaged_data, &data)
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return nil, err
-	}
-	return data, nil
+	//err = json.Unmarshal(packaged_data, &data)
+	//if err != nil {
+	//	userlib.DebugMsg("%v", err)
+	//	return nil, err
+	//}
+	return packaged_data, nil
 }
 
 // This creates a sharing record, which is a key pointing to something
