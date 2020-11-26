@@ -694,22 +694,38 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 		salt_volume_encryption)
 	if err != nil {
 		userlib.DebugMsg("%v", err)
-		return nil, 0, err
+		return err
 	}
 	k_volume = k_volume[:k_password_len]
 	defer HandlePanics()
-	volume := userlib.SymDec(k_volume, volume_encrypted.Ciphertext)
+	volume_encrypted_ptr.Ciphertext = userlib.SymEnc(k_volume, iv, volume)
 
-	return volume, pad_last, nil
+	// Authenticate
+	salt_volume_authentication := []byte("volume_authentication" + index_string)
+	k_volume_MAC, err := userlib.HashKDF(k_file,
+		salt_volume_authentication)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return err
+	}
+	k_volume_MAC = k_volume_MAC[:k_password_len]
+	volume_encrypted_ptr.MAC, err = userlib.HMACEval(k_volume_MAC, volume_encrypted_ptr.Ciphertext)
+	if err != nil {
+		userlib.DebugMsg("%v", err)
+		return err
+	}
+
+	return nil
 }
 
 // Load, verify, & decrypt volumes of FILENAME with USERDATA's credentials
-func LoadVolumes(userdata *User, filename string) (volumes [][]byte, err error) {
+func LoadVolumes(userdata *User, filename string) (volumes [][]byte, pad_last uint32, err error) {
 	// Get AES keys
-	ID_k := userdata.AES_key_storage_keys[filename]
+	ID_k, exists := userdata.AES_key_storage_keys[filename]
 	k_file, err := GetAESKeys(ID_k, userdata)
-	if err != nil {
-		return nil, errors.New(strings.ToTitle("File not found!"))
+	if err != nil || !exists {
+		// userlib.DebugMsg("k_file %v", k_file)
+		return nil, 0, err
 	}
 
 	// Get ciphertext
@@ -721,34 +737,35 @@ func LoadVolumes(userdata *User, filename string) (volumes [][]byte, err error) 
 	}
 	stored, ok := userlib.DatastoreGet(ID_file)
 	if !ok {
-		return nil, errors.New(strings.ToTitle("File not found!"))
+		return nil, 0, errors.New(strings.ToTitle("File not found!"))
 	}
 	var volumes_encrypted []Volume
 	json.Unmarshal(stored, &volumes_encrypted)
 
 	// Verify & decrypt
 	n_volumes := len(volumes_encrypted)
-	var pad_last uint32
+	volumes = make([][]byte, n_volumes)
 	for index, volume_encrypted := range volumes_encrypted {
 		volumes[index], pad_last, err = VerifyAndDecryptVolume(volume_encrypted, index, n_volumes, k_file)
 		// pad_last is finalised in last iteration
 		if err != nil {
 			userlib.DebugMsg("%v", err)
-			return nil, err
+			return nil, 0, err
 		}
 	}
-	return volumes, nil
+	return volumes, pad_last, nil
 }
 
 /* Verify and Decrypt VOLUME_ENCRYPTED at INDEX in the volume array
  that is N_VOLUMES long with key K_FILE */
-func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k_file []byte) (volumes [][]byte, pad_last uint32, err error) {
+func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k_file []byte) (volume []byte, pad_last uint32, err error) {
 	const VOLUME_SIZE = 1048576 // 2^20 bytes
 	const k_password_len uint32 = 16
 	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
 
 	// Check length
 	if len(volume_encrypted.Ciphertext) != ENCRYPTED_VOLUME_SIZE {
+		userlib.DebugMsg("Ciphertext length", len(volume_encrypted.Ciphertext))
 		return nil, 0, errors.New(strings.ToTitle("Wrong ciphertext length"))
 	}
 
@@ -776,22 +793,25 @@ func VerifyAndDecryptVolume(volume_encrypted Volume, index int, n_volumes int, k
 		userlib.DebugMsg("%v", err)
 		return nil, 0, err
 	}
-	if !userlib.HMACEqual(volume_encrypted.MAC, MAC){
-		return nil, 0, errors.New(strings.ToTitle("Verification failed"))
-	}
-
-	// Decrypt
-	salt_volume_encryption := []byte("volume_encryption" + index_string)
-	k_volume, err := userlib.HashKDF(k_file,
-		salt_volume_encryption)
-	if err != nil {
-		userlib.DebugMsg("%v", err)
-		return nil, 0, err
-	}
 	k_volume = k_volume[:k_password_len]
 	defer HandlePanics()
-	volume := userlib.SymDec(k_volume, volume_encrypted.Ciphertext)
+	volume = userlib.SymDec(k_volume, volume_encrypted.Ciphertext)
 
+	if pad_last != 0 {
+		for i := VOLUME_SIZE - pad_last; i < VOLUME_SIZE; i++ {
+			if volume[i] != byte(pad_last % 256) {
+				return nil, 0, errors.New(strings.ToTitle("Padding mismatch"))
+			}
+		}
+	}
+
+	if pad_last != 0 {
+		for i := VOLUME_SIZE - pad_last; i < VOLUME_SIZE; i++ {
+			if volume[i] != byte(pad_last % 256) {
+				return nil, 0, errors.New(strings.ToTitle("Padding mismatch"))
+			}
+		}
+	}
 	return volume, pad_last, nil
 }
 
@@ -1265,5 +1285,6 @@ func (userdata *User) RevokeFile(filename string, target_username string) (err e
 			}
 		}
 	}
+
 	return nil
 }
