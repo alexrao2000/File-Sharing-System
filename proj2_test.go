@@ -202,22 +202,34 @@ func TestShare(t *testing.T) {
 
 	//Custom tests
 	magic_string, err = u2.ShareFile("file1", "carl")
+	if err == nil {
+		t.Error("User should not share inaccessible filename", err)
+		return
+	}
+
+	magic_string, err = u2.ShareFile("file2", "carl")
 	if err != nil {
-		t.Error("User is not the owner of shared file", err)
+		t.Error("Cannot share shared file", err)
+		return
+	}
+
+	err = u3.ReceiveFile("file3", "bob", magic_string)
+	if err != nil {
+		t.Error("Cannot receive tree-shared file", err)
 		return
 	}
 
 	v = []byte("This is a test")
-	u3.StoreFile("file2", v)
+	// u3.StoreFile("file2", v)
 
 	magic_string, err = u1.ShareFile("file1", "carl")
 	if err != nil {
 		t.Error("Failed to share the a file", err)
 		return
 	}
-	err = u3.ReceiveFile("file2", "alice", magic_string)
-	if err != nil {
-		t.Error("File with the same name already exists: ", err)
+	err = u3.ReceiveFile("file3", "alice", magic_string)
+	if err == nil {
+		t.Error("File with the same name already exists, but overwritten: ", err)
 		return
 	}
 
@@ -228,21 +240,63 @@ func TestShare(t *testing.T) {
 	}
 
 	//Revoke tests
+	err = u1.RevokeFile("file3", "carl")
+	if err == nil {
+		t.Error("Revoked file should not exist", err)
+		return
+	}
+
+	err = u1.RevokeFile("file1", "carl")
+	if err == nil {
+		t.Error("Target user is not a direct recipient", err)
+		return
+	}
+
 	err = u1.RevokeFile("file1", "bob")
 	if err != nil {
 		t.Error("Failed to revoke file", err)
 		return
 	}
 
-	err = u1.RevokeFile("file1", "carl")
-	if err != nil {
-		t.Error("Target user does not have access to file", err)
+	_, err = u2.LoadFile("file2")
+	if err == nil {
+		t.Error("Revoked file still accessible", err)
 		return
 	}
 
-	err = u1.RevokeFile("file2", "carl")
+	err = u2.AppendFile("file2", v)
+	if err == nil {
+		t.Error("Revoked file still modifiable", err)
+		return
+	}
+
+	_, err = u2.ShareFile("file2", "carl")
+	if err == nil {
+		t.Error("Revoked file still shareable", err)
+		return
+	}
+
+	_, err = u3.LoadFile("file3")
+	if err == nil {
+		t.Error("Tree-revoked file still accessible", err)
+		return
+	}
+
+	err = u3.AppendFile("file3", v)
+	if err == nil {
+		t.Error("Tree-revoked file still modifiable", err)
+		return
+	}
+
+	_, err = InitUser("delta", "fubar")
 	if err != nil {
-		t.Error("User cannot revoke file because it does not exist in user's owned files", err)
+		t.Error("Failed to initialize user", err)
+		return
+	}
+
+	_, err = u3.ShareFile("file3", "delta")
+	if err == nil {
+		t.Error("Tree-revoked file still shareable", err)
 		return
 	}
 }
