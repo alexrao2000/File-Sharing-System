@@ -263,6 +263,16 @@ func Depad(slice []byte) []byte {
 	return slice[:last_val]
 }
 
+//Depad for AppendFile
+func DepadAppend(slice []byte, pad_last uint32, new_data_len uint32) []byte {
+	for index := len(slice) - 1; index >= int(new_data_len); index-- {
+		if int(slice[index]) != int(pad_last)%256 {
+			userlib.DebugMsg("Can't depad unpadded byte array")
+		}
+	}
+	return slice[:int(new_data_len)]
+}
+
 // Front pad & PKE PLAINTEXT w/ KEY to prevent IND-CPA
 func PKEEncPadded(key userlib.PKEEncKey, plaintext []byte) (ciphertext []byte, err error) {
 	const k_password_len = 16
@@ -794,14 +804,68 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 // Append should be efficient, you shouldn't rewrite or reencrypt the
 // existing file, but only whatever additional information and
 // metadata you need.
+// This adds on to an existing file.
+//
+// Append should be efficient, you shouldn't rewrite or reencrypt the
+// existing file, but only whatever additional information and
+// metadata you need.
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
-	// Find UUID of keys
-	// index_k = userdata.AES_key_indices[filename]
-	// ID_k := userdata.AES_key_storage_keys[filename]
-	// userlib.DatastoreSet(k_ID, append(ds_k_file, pke_k_file))
-	if userdata.AES_key_storage_keys[filename] == uuid.New() {
-		return errors.New(strings.ToTitle("File does not exist"))
+	const VOLUME_SIZE = 1048576
+	const ENCRYPTED_VOLUME_SIZE = 1048576 /*VOLUME_SIZE*/ + 16 /*userlib.AESBlockSize*/
+
+	//Load Volume
+	volumes, pad_last, err := LoadVolumes(userdata, filename)
+	if err != nil {
+		return err
 	}
+
+	n_volumes := len(volumes)
+	var depadded_volume []byte
+	var volumes_except_last [][]byte
+	if n_volumes > 0 {
+		//Depad the last volume using pad_last
+		new_data_len := VOLUME_SIZE - pad_last
+		last_volume := volumes[n_volumes-1]
+		depadded_volume = DepadAppend(last_volume, pad_last, new_data_len)
+		volumes_except_last = volumes[:len(volumes)-1]
+	}
+
+	//Generate new volumes
+	new_data := append(depadded_volume, data...)
+	new_volumes, new_volumes_encrypted := SplitData(new_data)
+
+	//Generate volumes_encrypted and volumes
+	volumes_encrypted := make([]Volume, len(volumes_except_last))
+	volumes = append(volumes_except_last, new_volumes...)
+	for _, enc_volume := range volumes_encrypted {
+		enc_volume.Ciphertext = make([]byte, ENCRYPTED_VOLUME_SIZE)
+		enc_volume.N_pad = 0
+	}
+	volumes_encrypted = append(volumes_encrypted, new_volumes_encrypted...)
+	for _, enc_volume := range volumes_encrypted {
+		userlib.DebugMsg("length: %v", len(data)+len(depadded_volume))
+		userlib.DebugMsg("n_pad: %v", enc_volume.N_pad)
+	}
+
+	//Pad last volume
+	if len(volumes) > 0 {
+		last_volume := volumes[len(volumes)-1]
+		padded_volume := make([]byte, VOLUME_SIZE)
+		copy(padded_volume[:len(last_volume)], last_volume)
+		volumes[len(volumes)-1] = Pad(padded_volume, len(last_volume), VOLUME_SIZE)
+	}
+
+	//Store Volumes
+	ID_k := userdata.AES_key_storage_keys[filename]
+	k_file, err := GetAESKeys(ID_k, filename, userdata)
+	if err != nil {
+		return err
+	}
+	err = StoreVolumes(volumes, volumes_encrypted, filename, userdata, k_file)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

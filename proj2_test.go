@@ -71,6 +71,29 @@ func TestInit(t *testing.T) {
 	if reflect.DeepEqual(u3, u3_0) {
 		t.Log("User was initialized and got")
 	}
+
+	u4, err := GetUser("bob", "")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error(err)
+		return
+	}
+	if reflect.DeepEqual(u3, u4) {
+		t.Log("User was initialized and got")
+	}
+
+	_, err = InitUser("bob", "hey")
+	if err == nil {
+		// t.Error says the test fails
+		t.Error("Should not be able to initialize two users with the same username")
+		return
+	}
+
+	_, err = GetUser("bob", "hey")
+	if err == nil {
+		t.Error("User should not be able to log in with incorrect password")
+		return
+	}
 }
 
 func TestStorage(t *testing.T) {
@@ -81,6 +104,24 @@ func TestStorage(t *testing.T) {
 		return
 	}
 
+	//Get two instances of the same user
+	u1, err = GetUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error(err)
+		return
+	}
+	u2, err := GetUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error(err)
+		return
+	}
+	if reflect.DeepEqual(u1, u2) {
+		t.Log("User was initialized and got")
+	}
+
+	//Store and load
 	v := []byte("This is a test")
 	u1.StoreFile("file1", v)
 
@@ -94,8 +135,22 @@ func TestStorage(t *testing.T) {
 		return
 	}
 
-	//Custom tests
-	u2, err := InitUser("bob", "rabuf")
+	//Overwrite file
+	v = []byte("hi")
+	u1.StoreFile("file1", v)
+
+	v, err2 = u1.LoadFile("file1")
+	if err2 != nil {
+		t.Error("Failed to upload and download", err2)
+		return
+	}
+	if reflect.DeepEqual(v, v2) {
+		t.Error("Did not correctly overwrite file", v, v2)
+		return
+	}
+
+	//Load file without access
+	u2, err = InitUser("bob", "rabuf")
 	if err != nil {
 		t.Error("Failed to initialize user", err)
 		return
@@ -103,6 +158,50 @@ func TestStorage(t *testing.T) {
 	_, err3 := u2.LoadFile("file1")
 	if err3 == nil {
 		t.Log("User loaded file to which they do not have access")
+		return
+	}
+
+	//Different user, store same file name
+	u2.StoreFile("file1", v)
+
+	v, err2 = u2.LoadFile("file1")
+	if err2 != nil {
+		t.Error("Failed to upload and download", err2)
+		return
+	}
+	v2, err2 = u1.LoadFile("file1")
+	if err2 != nil {
+		t.Error("Failed to upload and download", err2)
+		return
+	}
+	if !reflect.DeepEqual(v, v2) {
+		t.Error("Failed to store file of the same name and data with different user", v, v2)
+		return
+	}
+
+	//Store with two instances of the same user
+	u1, err = GetUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error(err)
+		return
+	}
+	u2, err = GetUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error(err)
+		return
+	}
+	u1.StoreFile("file1", v)
+	u2.StoreFile("file2", v2)
+	v, err2 = u2.LoadFile("file1")
+	if err2 != nil {
+		t.Error("Failed load file with two instances of same user", err2)
+		return
+	}
+	v2, err2 = u1.LoadFile("file2")
+	if err2 != nil {
+		t.Error("Failed load file with two instances of same user", err2)
 		return
 	}
 
@@ -140,6 +239,22 @@ func TestInvalidFile(t *testing.T) {
 	if err != nil {
 		t.Error("Failed to initialize user", err)
 		return
+	}
+
+	u1, err := GetUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error(err)
+		return
+	}
+	u2, err := GetUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error(err)
+		return
+	}
+	if reflect.DeepEqual(u1, u2) {
+		t.Log("User was initialized and got")
 	}
 
 	_, err2 := u.LoadFile("this file does not exist")
@@ -408,6 +523,19 @@ func TestAppend(t *testing.T) {
 		return
 	}
 
+	v, err = u1.LoadFile("file1")
+	if err != nil {
+		t.Error("File failed to load", err)
+		return
+	}
+
+	v_app := []byte("This is a testAppend this string")
+
+	if !reflect.DeepEqual(v, v_app) {
+		t.Error("Appending doesn't work", string(v), string(v_app))
+		return
+	}
+
 	err = u1.AppendFile("file2", []byte("Append this string"))
 	if err == nil {
 		t.Error("User should not be able to append to file that does not exist")
@@ -440,6 +568,11 @@ func TestAppend(t *testing.T) {
 	err = u2.ReceiveFile("file2", "alice", magic_string)
 	if err != nil {
 		t.Error("Failed to receive the share message", err)
+		return
+	}
+	v, err = u1.LoadFile("file1")
+	if err != nil {
+		t.Error("File failed to load", err)
 		return
 	}
 	v2, err = u2.LoadFile("file2")
